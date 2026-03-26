@@ -1,0 +1,14 @@
+name: micro-panda-gfx
+version: 0.1.0
+
+targets:
+  main:
+    entry: main
+    src: src/
+    test: test/
+    type: bin
+    flags: [DEBUG, HOSTED]
+    output: bin/main
+    cc:
+      bin: gcc
+      flags: [-g, -O0, -Wall]
