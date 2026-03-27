@@ -5,11 +5,11 @@
 // ── driver table ──────────────────────────────────────────────────────────────
 
 class GfxDriver
-    width:     i32
-    height:    i32
-    set_pixel: &fun(x: i32, y: i32, color: i32)
-    fill_rect: &fun(x: i32, y: i32, w: i32, h: i32, color: i32)
-    flush:     &fun()
+    var width:     i32
+    var height:    i32
+    var set_pixel: &fun(x: i32, y: i32, color: i32)
+    var fill_rect: &fun(x: i32, y: i32, w: i32, h: i32, color: i32)
+    var flush:     &fun()
 
 enum GfxRotation
     R0   = 0

@@ -16,11 +16,11 @@ All fields required except `flush` (optional, defaults to no-op):
 
 ```
 class GfxDriver
-    width:     i32
-    height:    i32
-    set_pixel: &fun(x, y, color)
-    fill_rect: &fun(x, y, w, h, color)
-    flush:     &fun()               // no-op for SPI, framebuffer send for I2C
+    var width:     i32
+    var height:    i32
+    var set_pixel: &fun(x, y, color)
+    var fill_rect: &fun(x, y, w, h, color)
+    var flush:     &fun()               // no-op for SPI, framebuffer send for I2C
 ```
 
 ## Font
