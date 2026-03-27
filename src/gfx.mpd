@@ -528,11 +528,26 @@ fun gfx_fill_triangle(x0: i32, y0: i32, x1: i32, y1: i32, x2: i32, y2: i32, colo
     var tx: i32 = 0
     var ty: i32 = 0
     if y1 < y0
-        tx = x0  ty = y0  x0 = x1  y0 = y1  x1 = tx  y1 = ty
+        tx = x0
+        ty = y0
+        x0 = x1
+        y0 = y1
+        x1 = tx
+        y1 = ty
     if y2 < y0
-        tx = x0  ty = y0  x0 = x2  y0 = y2  x2 = tx  y2 = ty
+        tx = x0
+        ty = y0
+        x0 = x2
+        y0 = y2
+        x2 = tx
+        y2 = ty
     if y2 < y1
-        tx = x1  ty = y1  x1 = x2  y1 = y2  x2 = tx  y2 = ty
+        tx = x1
+        ty = y1
+        x1 = x2
+        y1 = y2
+        x2 = tx
+        y2 = ty
     var y: i32 = y0
     while y <= y2
         var xa: i32 = 0
@@ -546,7 +561,9 @@ fun gfx_fill_triangle(x0: i32, y0: i32, x1: i32, y1: i32, x2: i32, y2: i32, colo
         else
             xb = x0
         if xa > xb
-            tx = xa  xa = xb  xb = tx
+            tx = xa
+            xa = xb
+            xb = tx
         _fill_fn(xa, y, xb - xa + 1, 1, color)
         y += 1
     _driver.flush()
