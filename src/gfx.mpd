@@ -7,9 +7,9 @@
 class GfxDriver
     var width:     i32
     var height:    i32
-    var set_pixel: &fun(x: i32, y: i32, color: i32)
-    var fill_rect: &fun(x: i32, y: i32, w: i32, h: i32, color: i32)
-    var flush:     &fun()
+    var set_pixel: fun(i32, i32, i32)
+    var fill_rect: fun(i32, i32, i32, i32, i32)
+    var flush:     fun()
 
 enum GfxRotation
     R0   = 0
@@ -20,8 +20,8 @@ enum GfxRotation
 var _driver:   GfxDriver
 var _view_w:   i32
 var _view_h:   i32
-var _pixel_fn: &fun(x: i32, y: i32, color: i32)
-var _fill_fn:  &fun(x: i32, y: i32, w: i32, h: i32, color: i32)
+var _pixel_fn: fun(i32, i32, i32)
+var _fill_fn:  fun(i32, i32, i32, i32, i32)
 
 fun _flush_noop()
     return

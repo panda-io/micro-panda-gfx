@@ -18,9 +18,9 @@ All fields required except `flush` (optional, defaults to no-op):
 class GfxDriver
     var width:     i32
     var height:    i32
-    var set_pixel: &fun(x, y, color)
-    var fill_rect: &fun(x, y, w, h, color)
-    var flush:     &fun()               // no-op for SPI, framebuffer send for I2C
+    var set_pixel: fun(i32, i32, i32)
+    var fill_rect: fun(i32, i32, i32, i32, i32)
+    var flush:     fun()               // no-op for SPI, framebuffer send for I2C
 ```
 
 ## Font
