@@ -643,10 +643,10 @@ fun gfx_char(x: i32, y: i32, c: u8, color: i32, bg: i32, scale: i32)
 // Glyph advance = (8 + 1) * scale pixels.
 // bg = -1 for transparent background.
 // Returns x position after the last character.
-fun gfx_str(x: i32, y: i32, s: u8[], len: i32, color: i32, bg: i32, scale: i32) i32
+fun gfx_str(x: i32, y: i32, s: u8[], color: i32, bg: i32, scale: i32) i32
     var i: i32 = 0
     var cx: i32 = x
-    while i < len
+    while i < i32(s.size())
         _char_raw(cx, y, s[i], color, bg, scale)
         cx += 9 * scale
         i += 1
