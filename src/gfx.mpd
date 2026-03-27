@@ -9,6 +9,7 @@ class GfxDriver
     height:    i32
     set_pixel: &fun(x: i32, y: i32, color: i32)
     fill_rect: &fun(x: i32, y: i32, w: i32, h: i32, color: i32)
+    flush:     &fun()
 
 enum GfxRotation
     R0   = 0
@@ -17,10 +18,13 @@ enum GfxRotation
     R270 = 3
 
 var _driver:   GfxDriver
-var _view_w:    i32
-var _view_h:    i32
+var _view_w:   i32
+var _view_h:   i32
 var _pixel_fn: &fun(x: i32, y: i32, color: i32)
 var _fill_fn:  &fun(x: i32, y: i32, w: i32, h: i32, color: i32)
+
+fun _flush_noop()
+    return
 
 // Return reference to the driver table. Host fills fields then calls gfx_init().
 fun gfx_driver() &GfxDriver
@@ -77,7 +81,10 @@ fun gfx_set_rotation(r: GfxRotation)
         _view_h    = _driver.width
 
 // Init after driver table is filled. Defaults to R0.
+// If driver.flush is not set, defaults to no-op.
 fun gfx_init()
+    if _driver.flush == null
+        _driver.flush = _flush_noop
     gfx_set_rotation(GfxRotation.R0)
 
 fun gfx_width() i32
@@ -391,6 +398,7 @@ fun gfx_pixel(x: i32, y: i32, color: i32)
     if x < 0 || x >= _view_w || y < 0 || y >= _view_h
         return
     _pixel_fn(x, y, color)
+    _driver.flush()
 
 fun gfx_hline(x: i32, y: i32, w: i32, color: i32)
     if w <= 0 || y < 0 || y >= _view_h
@@ -423,8 +431,10 @@ fun gfx_line(x0: i32, y0: i32, x1: i32, y1: i32, color: i32)
     var sy: i32 = _sign(y1 - y0)
     var err: i32 = dx - dy
     while true
-        gfx_pixel(x0, y0, color)
+        if x0 >= 0 && x0 < _view_w && y0 >= 0 && y0 < _view_h
+            _pixel_fn(x0, y0, color)
         if x0 == x1 && y0 == y1
+            _driver.flush()
             return
         var e2: i32 = err * 2
         if e2 > -dy
@@ -437,16 +447,19 @@ fun gfx_line(x0: i32, y0: i32, x1: i32, y1: i32, color: i32)
 // ── rectangles ────────────────────────────────────────────────────────────────
 
 fun gfx_rect(x: i32, y: i32, w: i32, h: i32, color: i32)
-    gfx_hline(x, y, w, color)
-    gfx_hline(x, y + h - 1, w, color)
-    gfx_vline(x, y + 1, h - 2, color)
-    gfx_vline(x + w - 1, y + 1, h - 2, color)
+    _fill_fn(x, y, w, 1, color)
+    _fill_fn(x, y + h - 1, w, 1, color)
+    _fill_fn(x, y + 1, 1, h - 2, color)
+    _fill_fn(x + w - 1, y + 1, 1, h - 2, color)
+    _driver.flush()
 
 fun gfx_fill_rect(x: i32, y: i32, w: i32, h: i32, color: i32)
     _fill_fn(x, y, w, h, color)
+    _driver.flush()
 
 fun gfx_clear(color: i32)
     _driver.fill_rect(0, 0, _driver.width, _driver.height, color)
+    _driver.flush()
 
 // ── circles ───────────────────────────────────────────────────────────────────
 
@@ -473,20 +486,42 @@ fun gfx_circle(cx: i32, cy: i32, r: i32, color: i32)
             y -= 1
         x += 1
         _circle_8(cx, cy, x, y, color)
+    _driver.flush()
 
 fun gfx_fill_circle(cx: i32, cy: i32, r: i32, color: i32)
     var dy: i32 = -r
     while dy <= r
         var dx: i32 = _isqrt(r * r - dy * dy)
-        gfx_hline(cx - dx, cy + dy, dx * 2 + 1, color)
+        _fill_fn(cx - dx, cy + dy, dx * 2 + 1, 1, color)
         dy += 1
+    _driver.flush()
 
 // ── triangles ─────────────────────────────────────────────────────────────────
 
+fun _line_raw(x0: i32, y0: i32, x1: i32, y1: i32, color: i32)
+    var dx: i32 = _abs(x1 - x0)
+    var dy: i32 = _abs(y1 - y0)
+    var sx: i32 = _sign(x1 - x0)
+    var sy: i32 = _sign(y1 - y0)
+    var err: i32 = dx - dy
+    while true
+        if x0 >= 0 && x0 < _view_w && y0 >= 0 && y0 < _view_h
+            _pixel_fn(x0, y0, color)
+        if x0 == x1 && y0 == y1
+            return
+        var e2: i32 = err * 2
+        if e2 > -dy
+            err -= dy
+            x0 += sx
+        if e2 < dx
+            err += dx
+            y0 += sy
+
 fun gfx_triangle(x0: i32, y0: i32, x1: i32, y1: i32, x2: i32, y2: i32, color: i32)
-    gfx_line(x0, y0, x1, y1, color)
-    gfx_line(x1, y1, x2, y2, color)
-    gfx_line(x2, y2, x0, y0, color)
+    _line_raw(x0, y0, x1, y1, color)
+    _line_raw(x1, y1, x2, y2, color)
+    _line_raw(x2, y2, x0, y0, color)
+    _driver.flush()
 
 fun gfx_fill_triangle(x0: i32, y0: i32, x1: i32, y1: i32, x2: i32, y2: i32, color: i32)
     // sort vertices by y: y0 <= y1 <= y2
@@ -512,58 +547,61 @@ fun gfx_fill_triangle(x0: i32, y0: i32, x1: i32, y1: i32, x2: i32, y2: i32, colo
             xb = x0
         if xa > xb
             tx = xa  xa = xb  xb = tx
-        gfx_hline(xa, y, xb - xa + 1, color)
+        _fill_fn(xa, y, xb - xa + 1, 1, color)
         y += 1
+    _driver.flush()
 
 // ── rounded rectangles ────────────────────────────────────────────────────────
 
 fun gfx_round_rect(x: i32, y: i32, w: i32, h: i32, r: i32, color: i32)
-    gfx_hline(x + r, y, w - 2 * r, color)
-    gfx_hline(x + r, y + h - 1, w - 2 * r, color)
-    gfx_vline(x, y + r, h - 2 * r, color)
-    gfx_vline(x + w - 1, y + r, h - 2 * r, color)
+    _fill_fn(x + r, y, w - 2 * r, 1, color)
+    _fill_fn(x + r, y + h - 1, w - 2 * r, 1, color)
+    _fill_fn(x, y + r, 1, h - 2 * r, color)
+    _fill_fn(x + w - 1, y + r, 1, h - 2 * r, color)
     var px: i32 = 0
     var py: i32 = r
     var d: i32 = 1 - r
     while px <= py
-        gfx_pixel(x + w - 1 - r + py, y + r - px, color)
-        gfx_pixel(x + r - py,          y + r - px, color)
-        gfx_pixel(x + w - 1 - r + py, y + h - 1 - r + px, color)
-        gfx_pixel(x + r - py,          y + h - 1 - r + px, color)
-        gfx_pixel(x + w - 1 - r + px, y + r - py, color)
-        gfx_pixel(x + r - px,          y + r - py, color)
-        gfx_pixel(x + w - 1 - r + px, y + h - 1 - r + py, color)
-        gfx_pixel(x + r - px,          y + h - 1 - r + py, color)
+        _pixel_fn(x + w - 1 - r + py, y + r - px, color)
+        _pixel_fn(x + r - py,          y + r - px, color)
+        _pixel_fn(x + w - 1 - r + py, y + h - 1 - r + px, color)
+        _pixel_fn(x + r - py,          y + h - 1 - r + px, color)
+        _pixel_fn(x + w - 1 - r + px, y + r - py, color)
+        _pixel_fn(x + r - px,          y + r - py, color)
+        _pixel_fn(x + w - 1 - r + px, y + h - 1 - r + py, color)
+        _pixel_fn(x + r - px,          y + h - 1 - r + py, color)
         if d < 0
             d += 2 * px + 3
         else
             d += 2 * (px - py) + 5
             py -= 1
         px += 1
+    _driver.flush()
 
 fun gfx_fill_round_rect(x: i32, y: i32, w: i32, h: i32, r: i32, color: i32)
-    gfx_fill_rect(x + r, y, w - 2 * r, h, color)
+    _fill_fn(x + r, y, w - 2 * r, h, color)
     var px: i32 = 0
     var py: i32 = r
     var d: i32 = 1 - r
     while px <= py
-        gfx_hline(x + w - 1 - r - py + 1, y + r - px, py * 2 - 1, color)
-        gfx_hline(x + w - 1 - r - py + 1, y + h - 1 - r + px, py * 2 - 1, color)
-        gfx_hline(x + w - 1 - r - px + 1, y + r - py, px * 2 - 1, color)
-        gfx_hline(x + w - 1 - r - px + 1, y + h - 1 - r + py, px * 2 - 1, color)
+        _fill_fn(x + w - 1 - r - py + 1, y + r - px, py * 2 - 1, 1, color)
+        _fill_fn(x + w - 1 - r - py + 1, y + h - 1 - r + px, py * 2 - 1, 1, color)
+        _fill_fn(x + w - 1 - r - px + 1, y + r - py, px * 2 - 1, 1, color)
+        _fill_fn(x + w - 1 - r - px + 1, y + h - 1 - r + py, px * 2 - 1, 1, color)
         if d < 0
             d += 2 * px + 3
         else
             d += 2 * (px - py) + 5
             py -= 1
         px += 1
+    _driver.flush()
 
 // ── text ──────────────────────────────────────────────────────────────────────
 
 // Draw one CP437 character at pixel (x, y).
 // scale: 1–8, each font pixel becomes a scale×scale block.
 // bg = -1 for transparent background.
-fun gfx_char(x: i32, y: i32, c: u8, color: i32, bg: i32, scale: i32)
+fun _char_raw(x: i32, y: i32, c: u8, color: i32, bg: i32, scale: i32)
     var row: i32 = 0
     while row < 8
         var bits: u8 = _font_row(c, row)
@@ -577,6 +615,13 @@ fun gfx_char(x: i32, y: i32, c: u8, color: i32, bg: i32, scale: i32)
             col += 1
         row += 1
 
+// Draw one CP437 character at pixel (x, y).
+// scale: 1–8, each font pixel becomes a scale×scale block.
+// bg = -1 for transparent background.
+fun gfx_char(x: i32, y: i32, c: u8, color: i32, bg: i32, scale: i32)
+    _char_raw(x, y, c, color, bg, scale)
+    _driver.flush()
+
 // Draw len bytes of s as CP437 characters starting at (x, y).
 // Glyph advance = (8 + 1) * scale pixels.
 // bg = -1 for transparent background.
@@ -585,8 +630,9 @@ fun gfx_str(x: i32, y: i32, s: u8[], len: i32, color: i32, bg: i32, scale: i32) 
     var i: i32 = 0
     var cx: i32 = x
     while i < len
-        gfx_char(cx, y, s[i], color, bg, scale)
+        _char_raw(cx, y, s[i], color, bg, scale)
         cx += 9 * scale
         i += 1
+    _driver.flush()
     return cx
 
