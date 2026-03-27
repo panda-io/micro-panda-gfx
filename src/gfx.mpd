@@ -624,7 +624,7 @@ fun _char_raw(x: i32, y: i32, c: u8, color: i32, bg: i32, scale: i32)
         var bits: u8 = _font_row(c, row)
         var col: i32 = 0
         while col < 8
-            if bits & u8(0x80 >> col) != 0
+            if (bits & u8(0x80 >> col)) != 0
                 _fill_fn(x + col * scale, y + row * scale, scale, scale, color)
             else
                 if bg >= 0
