@@ -1,91 +1,111 @@
-// panda_gfx — direct-mode GFX library
-// No framebuffer. Adafruit GFX style.
+// panda_gfx — strip-buffer GFX library.
+// GFX owns the strip buffer; driver receives it via flush(x, y, w, h, buf).
 // Driver table is owned by gfx; host fills it via gfx_driver().
+
+import rotation::*
+import pixel_format::*
+import node::*
 
 // ── driver table ──────────────────────────────────────────────────────────────
 
 class GfxDriver
-    var width:     i32
-    var height:    i32
-    var set_pixel: fun(i32, i32, i32)
-    var fill_rect: fun(i32, i32, i32, i32, i32)
-    var flush:     fun()
+    var width:  i32
+    var height: i32
+    var flush:  fun(i32, i32, i32, i32, u8[])   // x, y, w, h, buf
 
-enum GfxRotation
-    R0   = 0
-    R90  = 1
-    R180 = 2
-    R270 = 3
+var _driver:       GfxDriver
+var _strip:        u8[]                        // GFX-owned strip buffer
+var _format:       PixelFormat                 // physical pixel format
+var _view_w:       i32
+var _view_h:       i32
+var _fill_fn:      fun(i32, i32, i32, i32, i32)  // logical fill → physical strip (rotation-aware)
+var _phys_fill_fn: fun(i32, i32, i32, i32, i32)  // write rect at physical coords to _strip
 
-var _driver:   GfxDriver
-var _view_w:   i32
-var _view_h:   i32
-var _pixel_fn: fun(i32, i32, i32)
-var _fill_fn:  fun(i32, i32, i32, i32, i32)
-
-fun _flush_noop()
-    return
-
-// Return reference to the driver table. Host fills fields then calls gfx_init().
+// Return reference to the driver table. Host fills fields then calls gfx_set_strip() + gfx_init().
 fun gfx_driver() &GfxDriver
     return &_driver
 
-// ── rotation-specialised internal functions ───────────────────────────────────
+// ── physical strip-buffer pixel writers ───────────────────────────────────────
+// Write to _strip at physical (px, py) in the current _format.
 
-fun _pixel_r0(x: i32, y: i32, color: i32)
-    _driver.set_pixel(x, y, color)
+fun _strip_pixel_mono(px: i32, py: i32, color: i32)
+    val stride: i32 = (_driver.width + 7) / 8
+    val idx: i32    = py * stride + px / 8
+    if color != 0
+        _strip[idx] = _strip[idx] | u8(0x80 >> (px & 7))
+    else
+        _strip[idx] = _strip[idx] & u8(~(0x80 >> (px & 7)))
 
-fun _pixel_r90(x: i32, y: i32, color: i32)
-    _driver.set_pixel(_driver.width - 1 - y, x, color)
+fun _strip_fill_mono(px: i32, py: i32, w: i32, h: i32, color: i32)
+    var iy: i32 = py
+    while iy < py + h
+        var ix: i32 = px
+        while ix < px + w
+            _strip_pixel_mono(ix, iy, color)
+            ix += 1
+        iy += 1
 
-fun _pixel_r180(x: i32, y: i32, color: i32)
-    _driver.set_pixel(_driver.width - 1 - x, _driver.height - 1 - y, color)
+fun _strip_pixel_rgb565(px: i32, py: i32, color: i32)
+    val idx: i32    = (py * _driver.width + px) * 2
+    _strip[idx]     = u8(color >> 8)
+    _strip[idx + 1] = u8(color)
 
-fun _pixel_r270(x: i32, y: i32, color: i32)
-    _driver.set_pixel(y, _driver.height - 1 - x, color)
+fun _strip_fill_rgb565(px: i32, py: i32, w: i32, h: i32, color: i32)
+    var iy: i32 = py
+    while iy < py + h
+        var ix: i32 = px
+        while ix < px + w
+            _strip_pixel_rgb565(ix, iy, color)
+            ix += 1
+        iy += 1
+
+// ── rotation-specialised fill functions ───────────────────────────────────────
+// Map logical rect to physical coords, then write to _strip via _phys_fill_fn.
 
 fun _fill_r0(x: i32, y: i32, w: i32, h: i32, color: i32)
-    _driver.fill_rect(x, y, w, h, color)
+    _phys_fill_fn(x, y, w, h, color)
 
 fun _fill_r90(x: i32, y: i32, w: i32, h: i32, color: i32)
-    _driver.fill_rect(_driver.width - y - h, x, h, w, color)
+    _phys_fill_fn(_driver.width - y - h, x, h, w, color)
 
 fun _fill_r180(x: i32, y: i32, w: i32, h: i32, color: i32)
-    _driver.fill_rect(_driver.width - x - w, _driver.height - y - h, w, h, color)
+    _phys_fill_fn(_driver.width - x - w, _driver.height - y - h, w, h, color)
 
 fun _fill_r270(x: i32, y: i32, w: i32, h: i32, color: i32)
-    _driver.fill_rect(y, _driver.height - x - w, h, w, color)
+    _phys_fill_fn(y, _driver.height - x - w, h, w, color)
 
-// Set rotation and update logical dimensions + dispatch pointers.
+// Set rotation and update logical dimensions + fill dispatch.
 // Call after gfx_init() or any time to re-orient the display.
-fun gfx_set_rotation(r: GfxRotation)
-    if r == GfxRotation.R0
-        _pixel_fn = _pixel_r0
-        _fill_fn  = _fill_r0
-        _view_w    = _driver.width
-        _view_h    = _driver.height
-    if r == GfxRotation.R90
-        _pixel_fn = _pixel_r90
-        _fill_fn  = _fill_r90
-        _view_w    = _driver.height
-        _view_h    = _driver.width
-    if r == GfxRotation.R180
-        _pixel_fn = _pixel_r180
-        _fill_fn  = _fill_r180
-        _view_w    = _driver.width
-        _view_h    = _driver.height
-    if r == GfxRotation.R270
-        _pixel_fn = _pixel_r270
-        _fill_fn  = _fill_r270
-        _view_w    = _driver.height
-        _view_h    = _driver.width
+fun gfx_set_rotation(r: Rotation)
+    if r == Rotation.R0
+        _fill_fn = _fill_r0
+        _view_w  = _driver.width
+        _view_h  = _driver.height
+    if r == Rotation.R90
+        _fill_fn = _fill_r90
+        _view_w  = _driver.height
+        _view_h  = _driver.width
+    if r == Rotation.R180
+        _fill_fn = _fill_r180
+        _view_w  = _driver.width
+        _view_h  = _driver.height
+    if r == Rotation.R270
+        _fill_fn = _fill_r270
+        _view_w  = _driver.height
+        _view_h  = _driver.width
 
-// Init after driver table is filled. Defaults to R0.
-// If driver.flush is not set, defaults to no-op.
+// Set the strip buffer and pixel format. Call before gfx_init().
+fun gfx_set_strip(buf: u8[], fmt: PixelFormat)
+    _strip  = buf
+    _format = fmt
+
+// Init after driver table and strip buffer are set. Defaults to R0.
 fun gfx_init()
-    if _driver.flush == null
-        _driver.flush = _flush_noop
-    gfx_set_rotation(GfxRotation.R0)
+    if _format == PixelFormat.Mono
+        _phys_fill_fn = _strip_fill_mono
+    if _format == PixelFormat.RGB565
+        _phys_fill_fn = _strip_fill_rgb565
+    gfx_set_rotation(Rotation.R0)
 
 fun gfx_width() i32
     return _view_w
@@ -368,252 +388,12 @@ static const uint8_t __mp_gfx_font[256][8] = {
 static inline uint8_t __mp_gfx_font_row(uint8_t c, int row) {
     return __mp_gfx_font[c][row];
 }
-
-static inline int32_t __mp_gfx_abs(int32_t v) { return v < 0 ? -v : v; }
-static inline int32_t __mp_gfx_sign(int32_t v) { return v > 0 ? 1 : (v < 0 ? -1 : 0); }
-
-static inline int32_t __mp_gfx_isqrt(int32_t n) {
-    if (n <= 0) return 0;
-    int32_t x = n, y = (x + 1) / 2;
-    while (y < x) { x = y; y = (x + n / x) / 2; }
-    return x;
-}
 """)
 
 @extern("__mp_gfx_font_row")
 fun _font_row(c: u8, row: i32) u8
 
-@extern("__mp_gfx_abs")
-fun _abs(v: i32) i32
-
-@extern("__mp_gfx_sign")
-fun _sign(v: i32) i32
-
-@extern("__mp_gfx_isqrt")
-fun _isqrt(n: i32) i32
-
-// ── core primitives ───────────────────────────────────────────────────────────
-
-fun gfx_pixel(x: i32, y: i32, color: i32)
-    if x < 0 || x >= _view_w || y < 0 || y >= _view_h
-        return
-    _pixel_fn(x, y, color)
-    _driver.flush()
-
-fun gfx_hline(x: i32, y: i32, w: i32, color: i32)
-    if w <= 0 || y < 0 || y >= _view_h
-        return
-    if x < 0
-        w += x
-        x = 0
-    if x + w > _view_w
-        w = _view_w - x
-    if w <= 0
-        return
-    _fill_fn(x, y, w, 1, color)
-
-fun gfx_vline(x: i32, y: i32, h: i32, color: i32)
-    if h <= 0 || x < 0 || x >= _view_w
-        return
-    if y < 0
-        h += y
-        y = 0
-    if y + h > _view_h
-        h = _view_h - y
-    if h <= 0
-        return
-    _fill_fn(x, y, 1, h, color)
-
-fun gfx_line(x0: i32, y0: i32, x1: i32, y1: i32, color: i32)
-    var dx: i32 = _abs(x1 - x0)
-    var dy: i32 = _abs(y1 - y0)
-    var sx: i32 = _sign(x1 - x0)
-    var sy: i32 = _sign(y1 - y0)
-    var err: i32 = dx - dy
-    while true
-        if x0 >= 0 && x0 < _view_w && y0 >= 0 && y0 < _view_h
-            _pixel_fn(x0, y0, color)
-        if x0 == x1 && y0 == y1
-            _driver.flush()
-            return
-        var e2: i32 = err * 2
-        if e2 > -dy
-            err -= dy
-            x0 += sx
-        if e2 < dx
-            err += dx
-            y0 += sy
-
-// ── rectangles ────────────────────────────────────────────────────────────────
-
-fun gfx_rect(x: i32, y: i32, w: i32, h: i32, color: i32)
-    _fill_fn(x, y, w, 1, color)
-    _fill_fn(x, y + h - 1, w, 1, color)
-    _fill_fn(x, y + 1, 1, h - 2, color)
-    _fill_fn(x + w - 1, y + 1, 1, h - 2, color)
-    _driver.flush()
-
-fun gfx_fill_rect(x: i32, y: i32, w: i32, h: i32, color: i32)
-    _fill_fn(x, y, w, h, color)
-    _driver.flush()
-
-fun gfx_clear(color: i32)
-    _driver.fill_rect(0, 0, _driver.width, _driver.height, color)
-    _driver.flush()
-
-// ── circles ───────────────────────────────────────────────────────────────────
-
-fun _circle_8(cx: i32, cy: i32, x: i32, y: i32, color: i32)
-    gfx_pixel(cx + x, cy + y, color)
-    gfx_pixel(cx - x, cy + y, color)
-    gfx_pixel(cx + x, cy - y, color)
-    gfx_pixel(cx - x, cy - y, color)
-    gfx_pixel(cx + y, cy + x, color)
-    gfx_pixel(cx - y, cy + x, color)
-    gfx_pixel(cx + y, cy - x, color)
-    gfx_pixel(cx - y, cy - x, color)
-
-fun gfx_circle(cx: i32, cy: i32, r: i32, color: i32)
-    var x: i32 = 0
-    var y: i32 = r
-    var d: i32 = 1 - r
-    _circle_8(cx, cy, x, y, color)
-    while x < y
-        if d < 0
-            d += 2 * x + 3
-        else
-            d += 2 * (x - y) + 5
-            y -= 1
-        x += 1
-        _circle_8(cx, cy, x, y, color)
-    _driver.flush()
-
-fun gfx_fill_circle(cx: i32, cy: i32, r: i32, color: i32)
-    var dy: i32 = -r
-    while dy <= r
-        var dx: i32 = _isqrt(r * r - dy * dy)
-        _fill_fn(cx - dx, cy + dy, dx * 2 + 1, 1, color)
-        dy += 1
-    _driver.flush()
-
-// ── triangles ─────────────────────────────────────────────────────────────────
-
-fun _line_raw(x0: i32, y0: i32, x1: i32, y1: i32, color: i32)
-    var dx: i32 = _abs(x1 - x0)
-    var dy: i32 = _abs(y1 - y0)
-    var sx: i32 = _sign(x1 - x0)
-    var sy: i32 = _sign(y1 - y0)
-    var err: i32 = dx - dy
-    while true
-        if x0 >= 0 && x0 < _view_w && y0 >= 0 && y0 < _view_h
-            _pixel_fn(x0, y0, color)
-        if x0 == x1 && y0 == y1
-            return
-        var e2: i32 = err * 2
-        if e2 > -dy
-            err -= dy
-            x0 += sx
-        if e2 < dx
-            err += dx
-            y0 += sy
-
-fun gfx_triangle(x0: i32, y0: i32, x1: i32, y1: i32, x2: i32, y2: i32, color: i32)
-    _line_raw(x0, y0, x1, y1, color)
-    _line_raw(x1, y1, x2, y2, color)
-    _line_raw(x2, y2, x0, y0, color)
-    _driver.flush()
-
-fun gfx_fill_triangle(x0: i32, y0: i32, x1: i32, y1: i32, x2: i32, y2: i32, color: i32)
-    // sort vertices by y: y0 <= y1 <= y2
-    var tx: i32 = 0
-    var ty: i32 = 0
-    if y1 < y0
-        tx = x0
-        ty = y0
-        x0 = x1
-        y0 = y1
-        x1 = tx
-        y1 = ty
-    if y2 < y0
-        tx = x0
-        ty = y0
-        x0 = x2
-        y0 = y2
-        x2 = tx
-        y2 = ty
-    if y2 < y1
-        tx = x1
-        ty = y1
-        x1 = x2
-        y1 = y2
-        x2 = tx
-        y2 = ty
-    var y: i32 = y0
-    while y <= y2
-        var xa: i32 = 0
-        var xb: i32 = 0
-        if y <= y1 && y1 != y0
-            xa = x0 + (y - y0) * (x1 - x0) / (y1 - y0)
-        else
-            xa = x1
-        if y2 != y0
-            xb = x0 + (y - y0) * (x2 - x0) / (y2 - y0)
-        else
-            xb = x0
-        if xa > xb
-            tx = xa
-            xa = xb
-            xb = tx
-        _fill_fn(xa, y, xb - xa + 1, 1, color)
-        y += 1
-    _driver.flush()
-
-// ── rounded rectangles ────────────────────────────────────────────────────────
-
-fun gfx_round_rect(x: i32, y: i32, w: i32, h: i32, r: i32, color: i32)
-    _fill_fn(x + r, y, w - 2 * r, 1, color)
-    _fill_fn(x + r, y + h - 1, w - 2 * r, 1, color)
-    _fill_fn(x, y + r, 1, h - 2 * r, color)
-    _fill_fn(x + w - 1, y + r, 1, h - 2 * r, color)
-    var px: i32 = 0
-    var py: i32 = r
-    var d: i32 = 1 - r
-    while px <= py
-        _pixel_fn(x + w - 1 - r + py, y + r - px, color)
-        _pixel_fn(x + r - py,          y + r - px, color)
-        _pixel_fn(x + w - 1 - r + py, y + h - 1 - r + px, color)
-        _pixel_fn(x + r - py,          y + h - 1 - r + px, color)
-        _pixel_fn(x + w - 1 - r + px, y + r - py, color)
-        _pixel_fn(x + r - px,          y + r - py, color)
-        _pixel_fn(x + w - 1 - r + px, y + h - 1 - r + py, color)
-        _pixel_fn(x + r - px,          y + h - 1 - r + py, color)
-        if d < 0
-            d += 2 * px + 3
-        else
-            d += 2 * (px - py) + 5
-            py -= 1
-        px += 1
-    _driver.flush()
-
-fun gfx_fill_round_rect(x: i32, y: i32, w: i32, h: i32, r: i32, color: i32)
-    _fill_fn(x + r, y, w - 2 * r, h, color)
-    var px: i32 = 0
-    var py: i32 = r
-    var d: i32 = 1 - r
-    while px <= py
-        _fill_fn(x + w - 1 - r - py + 1, y + r - px, py * 2 - 1, 1, color)
-        _fill_fn(x + w - 1 - r - py + 1, y + h - 1 - r + px, py * 2 - 1, 1, color)
-        _fill_fn(x + w - 1 - r - px + 1, y + r - py, px * 2 - 1, 1, color)
-        _fill_fn(x + w - 1 - r - px + 1, y + h - 1 - r + py, px * 2 - 1, 1, color)
-        if d < 0
-            d += 2 * px + 3
-        else
-            d += 2 * (px - py) + 5
-            py -= 1
-        px += 1
-    _driver.flush()
-
-// ── text ──────────────────────────────────────────────────────────────────────
+// ── text (TODO: move to font node) ────────────────────────────────────────────
 
 // Draw one CP437 character at pixel (x, y).
 // scale: 1–8, each font pixel becomes a scale×scale block.
@@ -637,7 +417,7 @@ fun _char_raw(x: i32, y: i32, c: u8, color: i32, bg: i32, scale: i32)
 // bg = -1 for transparent background.
 fun gfx_char(x: i32, y: i32, c: u8, color: i32, bg: i32, scale: i32)
     _char_raw(x, y, c, color, bg, scale)
-    _driver.flush()
+    _driver.flush(0, 0, _driver.width, _driver.height, _strip)
 
 // Draw len bytes of s as CP437 characters starting at (x, y).
 // Glyph advance = (8 + 1) * scale pixels.
@@ -650,6 +430,16 @@ fun gfx_str(x: i32, y: i32, s: u8[], color: i32, bg: i32, scale: i32) i32
         _char_raw(cx, y, s[i], color, bg, scale)
         cx += 9 * scale
         i += 1
-    _driver.flush()
+    _driver.flush(0, 0, _driver.width, _driver.height, _strip)
     return cx
+
+// ── node render ───────────────────────────────────────────────────────────────
+// Render a node tree into the driver, applying bias_x/bias_y offsets.
+// Canvas nodes: their pixel buffer is passed directly to the driver flush —
+// no copy into _strip needed.
+
+fun gfx_render(node: &Node, bias_x: i32, bias_y: i32)
+    match node
+        Canvas(c):
+            _driver.flush(c.x + bias_x, c.y + bias_y, c.width, c.height, c.buf)
 

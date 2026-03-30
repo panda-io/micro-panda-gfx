@@ -1,0 +1,26 @@
+// Font — monospaced bitmap font descriptor.
+// All glyphs have the same width. No per-glyph metadata.
+//
+// Bitmap layout (data) — column-major, width bytes per glyph:
+//   Glyph for char c (where first <= c <= last):
+//     offset = (c - first) * width + px
+//   Within each column byte: bit 0 = top row (row 0), bit 7 = bottom row.
+
+class Font
+    var data:      u8[]   // raw bitmap — all glyphs packed sequentially
+    var width:     i32    // glyph width  in pixels (same for all glyphs)
+    var height:    i32    // glyph height in pixels (same for all glyphs)
+    var x_advance: i32    // horizontal advance per glyph (pixels)
+    var y_advance: i32    // vertical advance per line    (pixels)
+    var first:     u8     // first CP437 code in data
+    var last:      u8     // last  CP437 code in data
+
+    // Return 1 if pixel (px, py) of glyph c is set, 0 otherwise.
+    // Returns 0 for out-of-range chars or coords.
+    fun get_pixel(c: u8, px: i32, py: i32) i32
+        if c < first || c > last
+            return 0
+        if px < 0 || px >= width || py < 0 || py >= height
+            return 0
+        val offset: i32 = i32(c - first) * width + px
+        return i32((data[offset] >> u8(py)) & u8(1))

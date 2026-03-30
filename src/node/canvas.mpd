@@ -1,0 +1,298 @@
+import pixel_format::*
+import palette::*
+
+// Canvas — indexed or direct-color pixel buffer.
+// All draw calls write into buf. No flush, no driver, no rotation.
+// Rotation is applied at render time by gfx.
+// color parameter is always a palette index for indexed formats, or RGB565 for RGB565/Mono.
+
+class Canvas
+    var buf:           u8[]
+    var x:             i32
+    var y:             i32
+    var width:         i32
+    var height:        i32
+    var format:        PixelFormat
+    var palette:       &Palette             // null for RGB565 and Mono
+    var _set_pixel_fn: fun(i32, i32, i32)  // set by set_format()
+
+    // ── public primitives ──────────────────────────────────────────────────────
+
+    // Set format and wire the pixel writer. Call before any draw calls.
+    fun set_format(fmt: PixelFormat)
+        format = fmt
+        if fmt == PixelFormat.RGB565
+            _set_pixel_fn = _set_pixel_rgb565
+        if fmt == PixelFormat.Mono
+            _set_pixel_fn = _set_pixel_mono
+        if fmt == PixelFormat.Index1
+            _set_pixel_fn = _set_pixel_index1
+        if fmt == PixelFormat.Index2
+            _set_pixel_fn = _set_pixel_index2
+        if fmt == PixelFormat.Index4
+            _set_pixel_fn = _set_pixel_index4
+        if fmt == PixelFormat.Index8
+            _set_pixel_fn = _set_pixel_index8
+
+    fun draw_pixel(x: i32, y: i32, color: i32)
+        if x < 0 || x >= width || y < 0 || y >= height
+            return
+        _set_pixel(x, y, color)
+
+    fun draw_hline(x: i32, y: i32, w: i32, color: i32)
+        if w <= 0 || y < 0 || y >= height
+            return
+        if x < 0
+            w += x
+            x = 0
+        if x + w > width
+            w = width - x
+        if w <= 0
+            return
+        _fill_rect(x, y, w, 1, color)
+
+    fun draw_vline(x: i32, y: i32, h: i32, color: i32)
+        if h <= 0 || x < 0 || x >= width
+            return
+        if y < 0
+            h += y
+            y = 0
+        if y + h > height
+            h = height - y
+        if h <= 0
+            return
+        _fill_rect(x, y, 1, h, color)
+
+    fun draw_line(x0: i32, y0: i32, x1: i32, y1: i32, color: i32)
+        _line_raw(x0, y0, x1, y1, color)
+
+    fun draw_rect(x: i32, y: i32, w: i32, h: i32, color: i32)
+        _fill_rect(x,         y,         w, 1,     color)
+        _fill_rect(x,         y + h - 1, w, 1,     color)
+        _fill_rect(x,         y + 1,     1, h - 2, color)
+        _fill_rect(x + w - 1, y + 1,     1, h - 2, color)
+
+    fun fill_rect(x: i32, y: i32, w: i32, h: i32, color: i32)
+        _fill_rect(x, y, w, h, color)
+
+    fun clear(color: i32)
+        _fill_rect(0, 0, width, height, color)
+
+    fun draw_circle(cx: i32, cy: i32, r: i32, color: i32)
+        var x: i32 = 0
+        var y: i32 = r
+        var d: i32 = 1 - r
+        _circle_8(cx, cy, x, y, color)
+        while x < y
+            if d < 0
+                d += 2 * x + 3
+            else
+                d += 2 * (x - y) + 5
+                y -= 1
+            x += 1
+            _circle_8(cx, cy, x, y, color)
+
+    fun fill_circle(cx: i32, cy: i32, r: i32, color: i32)
+        var dy: i32 = -r
+        while dy <= r
+            val dx: i32 = _isqrt(r * r - dy * dy)
+            _fill_rect(cx - dx, cy + dy, dx * 2 + 1, 1, color)
+            dy += 1
+
+    fun draw_triangle(x0: i32, y0: i32, x1: i32, y1: i32, x2: i32, y2: i32, color: i32)
+        _line_raw(x0, y0, x1, y1, color)
+        _line_raw(x1, y1, x2, y2, color)
+        _line_raw(x2, y2, x0, y0, color)
+
+    fun fill_triangle(x0: i32, y0: i32, x1: i32, y1: i32, x2: i32, y2: i32, color: i32)
+        // sort vertices by y: y0 <= y1 <= y2
+        var tx: i32 = 0
+        var ty: i32 = 0
+        if y1 < y0
+            tx = x0
+            ty = y0
+            x0 = x1
+            y0 = y1
+            x1 = tx
+            y1 = ty
+        if y2 < y0
+            tx = x0
+            ty = y0
+            x0 = x2
+            y0 = y2
+            x2 = tx
+            y2 = ty
+        if y2 < y1
+            tx = x1
+            ty = y1
+            x1 = x2
+            y1 = y2
+            x2 = tx
+            y2 = ty
+        var y: i32 = y0
+        while y <= y2
+            var xa: i32 = 0
+            var xb: i32 = 0
+            if y <= y1 && y1 != y0
+                xa = x0 + (y - y0) * (x1 - x0) / (y1 - y0)
+            else
+                xa = x1
+            if y2 != y0
+                xb = x0 + (y - y0) * (x2 - x0) / (y2 - y0)
+            else
+                xb = x0
+            if xa > xb
+                tx = xa
+                xa = xb
+                xb = tx
+            _fill_rect(xa, y, xb - xa + 1, 1, color)
+            y += 1
+
+    fun draw_round_rect(x: i32, y: i32, w: i32, h: i32, r: i32, color: i32)
+        _fill_rect(x + r,     y,         w - 2 * r, 1,         color)
+        _fill_rect(x + r,     y + h - 1, w - 2 * r, 1,         color)
+        _fill_rect(x,         y + r,     1,         h - 2 * r, color)
+        _fill_rect(x + w - 1, y + r,     1,         h - 2 * r, color)
+        var px: i32 = 0
+        var py: i32 = r
+        var d: i32  = 1 - r
+        while px <= py
+            _set_pixel(x + w - 1 - r + py, y + r - px,         color)
+            _set_pixel(x + r - py,          y + r - px,         color)
+            _set_pixel(x + w - 1 - r + py, y + h - 1 - r + px, color)
+            _set_pixel(x + r - py,          y + h - 1 - r + px, color)
+            _set_pixel(x + w - 1 - r + px, y + r - py,         color)
+            _set_pixel(x + r - px,          y + r - py,         color)
+            _set_pixel(x + w - 1 - r + px, y + h - 1 - r + py, color)
+            _set_pixel(x + r - px,          y + h - 1 - r + py, color)
+            if d < 0
+                d += 2 * px + 3
+            else
+                d += 2 * (px - py) + 5
+                py -= 1
+            px += 1
+
+    fun fill_round_rect(x: i32, y: i32, w: i32, h: i32, r: i32, color: i32)
+        _fill_rect(x + r, y, w - 2 * r, h, color)
+        var px: i32 = 0
+        var py: i32 = r
+        var d: i32  = 1 - r
+        while px <= py
+            _fill_rect(x + w - 1 - r - py + 1, y + r - px,         py * 2 - 1, 1, color)
+            _fill_rect(x + w - 1 - r - py + 1, y + h - 1 - r + px, py * 2 - 1, 1, color)
+            _fill_rect(x + w - 1 - r - px + 1, y + r - py,         px * 2 - 1, 1, color)
+            _fill_rect(x + w - 1 - r - px + 1, y + h - 1 - r + py, px * 2 - 1, 1, color)
+            if d < 0
+                d += 2 * px + 3
+            else
+                d += 2 * (px - py) + 5
+                py -= 1
+            px += 1
+
+    // ── private helpers ────────────────────────────────────────────────────────
+
+    // Dispatch — single call per pixel, no branching.
+    fun _set_pixel(x: i32, y: i32, color: i32)
+        _set_pixel_fn(x, y, color)
+
+    // Fill a rectangle — no bounds check, caller ensures valid coords.
+    fun _fill_rect(x: i32, y: i32, w: i32, h: i32, color: i32)
+        var iy: i32 = y
+        while iy < y + h
+            var ix: i32 = x
+            while ix < x + w
+                _set_pixel(ix, iy, color)
+                ix += 1
+            iy += 1
+
+    fun _circle_8(cx: i32, cy: i32, x: i32, y: i32, color: i32)
+        draw_pixel(cx + x, cy + y, color)
+        draw_pixel(cx - x, cy + y, color)
+        draw_pixel(cx + x, cy - y, color)
+        draw_pixel(cx - x, cy - y, color)
+        draw_pixel(cx + y, cy + x, color)
+        draw_pixel(cx - y, cy + x, color)
+        draw_pixel(cx + y, cy - x, color)
+        draw_pixel(cx - y, cy - x, color)
+
+    fun _line_raw(x0: i32, y0: i32, x1: i32, y1: i32, color: i32)
+        var dx: i32  = _abs(x1 - x0)
+        var dy: i32  = _abs(y1 - y0)
+        var sx: i32  = _sign(x1 - x0)
+        var sy: i32  = _sign(y1 - y0)
+        var err: i32 = dx - dy
+        var cx: i32  = x0
+        var cy: i32  = y0
+        while true
+            if cx >= 0 && cx < width && cy >= 0 && cy < height
+                _set_pixel(cx, cy, color)
+            if cx == x1 && cy == y1
+                return
+            val e2: i32 = err * 2
+            if e2 > -dy
+                err -= dy
+                cx  += sx
+            if e2 < dx
+                err += dx
+                cy  += sy
+
+    // ── per-format pixel writers (no bounds check) ────────────────────────────
+
+    fun _set_pixel_rgb565(x: i32, y: i32, color: i32)
+        val idx: i32 = (y * width + x) * 2
+        buf[idx]     = u8(color >> 8)
+        buf[idx + 1] = u8(color)
+
+    fun _set_pixel_mono(x: i32, y: i32, color: i32)
+        val idx: i32 = y * ((width + 7) / 8) + x / 8
+        if color != 0
+            buf[idx] = buf[idx] | u8(0x80 >> (x & 7))
+        else
+            buf[idx] = buf[idx] & u8(~(0x80 >> (x & 7)))
+
+    fun _set_pixel_index1(x: i32, y: i32, color: i32)
+        val idx: i32 = y * ((width + 7) / 8) + x / 8
+        if (color & 1) != 0
+            buf[idx] = buf[idx] | u8(0x80 >> (x & 7))
+        else
+            buf[idx] = buf[idx] & u8(~(0x80 >> (x & 7)))
+
+    fun _set_pixel_index2(x: i32, y: i32, color: i32)
+        val idx: i32   = (y * width + x) / 4
+        val shift: i32 = (3 - (x & 3)) * 2
+        buf[idx] = (buf[idx] & u8(~(0x03 << shift))) | u8((color & 0x03) << shift)
+
+    fun _set_pixel_index4(x: i32, y: i32, color: i32)
+        val idx: i32 = (y * width + x) / 2
+        if (x & 1) == 0
+            buf[idx] = (buf[idx] & u8(0x0F)) | u8(color << 4)
+        else
+            buf[idx] = (buf[idx] & u8(0xF0)) | u8(color & 0x0F)
+
+    fun _set_pixel_index8(x: i32, y: i32, color: i32)
+        buf[y * width + x] = u8(color)
+
+    @inline
+    fun _abs(v: i32) i32
+        if v < 0
+            return -v
+        return v
+
+    @inline
+    fun _sign(v: i32) i32
+        if v > 0
+            return 1
+        if v < 0
+            return -1
+        return 0
+
+    @inline
+    fun _isqrt(n: i32) i32
+        if n <= 0
+            return 0
+        var x: i32 = n
+        var y: i32 = (x + 1) / 2
+        while y < x
+            x = y
+            y = (x + n / x) / 2
+        return x

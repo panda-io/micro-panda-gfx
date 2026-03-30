@@ -1,0 +1,18 @@
+// Palette — maps pixel index values to RGB565 colors.
+// size must match the canvas PixelFormat:
+//   Index1 -> 2 entries
+//   Index2 -> 4 entries
+//   Index4 -> 16 entries
+//   Index8 -> 256 entries
+
+class Palette
+    var colors: u16[]
+
+    fun set(index: i32, rgb565: u16)
+        if index >= 0 && index < i32(colors.size())
+            colors[index] = rgb565
+
+    fun get(index: i32) u16
+        if index >= 0 && index < i32(colors.size())
+            return colors[index]
+        return u16(0)
