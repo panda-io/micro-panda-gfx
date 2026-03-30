@@ -1,7 +1,6 @@
+// Physical strip/driver format — direct color only.
+// Used by GfxDriver, RenderCtx, and Gfx strip buffers.
 enum PixelFormat
     Mono   = 0   // 1-bit, no palette — OLED framebuffer (0=off, 1=on)
-    Index1 = 1   // 1-bit index, 2-color palette
-    Index2 = 2   // 2-bit index, 4-color palette
-    Index4 = 3   // 4-bit index, 16-color palette
-    Index8 = 4   // 8-bit index, 256-color palette
-    RGB565 = 5   // 16-bit direct color, no palette
+    RGB565 = 1   // 16-bit direct color
+

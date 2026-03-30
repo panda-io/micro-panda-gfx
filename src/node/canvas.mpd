@@ -1,10 +1,9 @@
-import pixel_format::*
+import index_format::*
 import palette::*
+import render_ctx::RenderCtx
 
-// Canvas — indexed or direct-color pixel buffer.
+// Canvas — indexed pixel buffer. color parameter is always a palette index.
 // All draw calls write into buf. No flush, no driver, no rotation.
-// Rotation is applied at render time by gfx.
-// color parameter is always a palette index for indexed formats, or RGB565 for RGB565/Mono.
 
 class Canvas
     var buf:           u8[]
@@ -12,26 +11,23 @@ class Canvas
     var y:             i32
     var width:         i32
     var height:        i32
-    var format:        PixelFormat
-    var palette:       &Palette             // null for RGB565 and Mono
-    var _set_pixel_fn: fun(i32, i32, i32)  // set by set_format()
+    var ifmt:          IndexFormat
+    var palette:       &Palette
+    var _set_pixel_fn: fun(i32, i32, i32)
 
     // ── public primitives ──────────────────────────────────────────────────────
 
-    // Set format and wire the pixel writer. Call before any draw calls.
-    fun set_format(fmt: PixelFormat)
-        format = fmt
-        if fmt == PixelFormat.RGB565
-            _set_pixel_fn = _set_pixel_rgb565
-        if fmt == PixelFormat.Mono
-            _set_pixel_fn = _set_pixel_mono
-        if fmt == PixelFormat.Index1
+    // Wire pixel writer for the given index format. Call before any draw calls.
+    fun set_format(fmt: IndexFormat, p: &Palette)
+        ifmt    = fmt
+        palette = p
+        if fmt == IndexFormat.Index1
             _set_pixel_fn = _set_pixel_index1
-        if fmt == PixelFormat.Index2
+        if fmt == IndexFormat.Index2
             _set_pixel_fn = _set_pixel_index2
-        if fmt == PixelFormat.Index4
+        if fmt == IndexFormat.Index4
             _set_pixel_fn = _set_pixel_index4
-        if fmt == PixelFormat.Index8
+        if fmt == IndexFormat.Index8
             _set_pixel_fn = _set_pixel_index8
 
     fun draw_pixel(x: i32, y: i32, color: i32)
@@ -77,6 +73,12 @@ class Canvas
 
     fun clear(color: i32)
         _fill_rect(0, 0, width, height, color)
+
+    // Render this canvas into the strip buffer described by ctx.
+    // bias_x/bias_y: accumulated offset from parent containers.
+    // Clips to the strip window [ctx.win_y, ctx.win_y + ctx.win_h).
+    // TODO: implement pixel copy with window clip and format conversion.
+    fun render(ctx: &RenderCtx, bias_x: i32, bias_y: i32)
 
     fun draw_circle(cx: i32, cy: i32, r: i32, color: i32)
         var x: i32 = 0
@@ -237,18 +239,6 @@ class Canvas
                 cy  += sy
 
     // ── per-format pixel writers (no bounds check) ────────────────────────────
-
-    fun _set_pixel_rgb565(x: i32, y: i32, color: i32)
-        val idx: i32 = (y * width + x) * 2
-        buf[idx]     = u8(color >> 8)
-        buf[idx + 1] = u8(color)
-
-    fun _set_pixel_mono(x: i32, y: i32, color: i32)
-        val idx: i32 = y * ((width + 7) / 8) + x / 8
-        if color != 0
-            buf[idx] = buf[idx] | u8(0x80 >> (x & 7))
-        else
-            buf[idx] = buf[idx] & u8(~(0x80 >> (x & 7)))
 
     fun _set_pixel_index1(x: i32, y: i32, color: i32)
         val idx: i32 = y * ((width + 7) / 8) + x / 8

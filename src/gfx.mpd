@@ -1,107 +1,103 @@
 // panda_gfx — strip-buffer GFX library.
 // One Gfx instance per display. Pass a &GfxDriver to support multiple screens.
+// Rotation is fixed at init and handled entirely by the driver.
+// Gfx writes to the strip in logical order; driver owns the physical transform.
+//
+// Strip render loop (per frame):
+//   For each strip: clear back buffer → render root node tree → wait → swap → flush.
+//   Double-buffer: CPU renders strip N+1 into back while DMA sends strip N from front.
+//   Single-buffer: pass empty buf1 — driver.wait/flush are synchronous.
 
 import rotation::*
 import pixel_format::*
 import node::*
+import render_ctx::RenderCtx
+import memory::memory_zero
 
 // ── driver table ──────────────────────────────────────────────────────────────
 
 class GfxDriver
-    var width:  i32
-    var height: i32
-    var flush:  fun(i32, i32, i32, i32, u8[])   // x, y, w, h, buf
+    var width:        i32
+    var height:       i32
+    var set_rotation: fun(Rotation)
+    var wait:         fun()                          // wait for in-flight DMA flush to complete
+    var flush:        fun(i32, i32, i32, i32, u8[])  // start async flush (x, y, w, h, buf)
 
 // ── Gfx ───────────────────────────────────────────────────────────────────────
 
 class Gfx
-    var driver:        &GfxDriver
-    var strip:         u8[]
-    var format:        PixelFormat
-    var view_w:        i32
-    var view_h:        i32
-    var _fill_fn:      fun(i32, i32, i32, i32, i32)
-    var _phys_fill_fn: fun(i32, i32, i32, i32, i32)
+    var driver:      &GfxDriver
+    var root:        &Node                // any node type; owns the scene tree
+    var format:      PixelFormat
+    var view_w:      i32
+    var view_h:      i32
+    var strip_rows:  i32                  // rows per strip
+    var strip_count: i32                  // strips needed to cover full view height
+    var _strip0:     u8[]
+    var _strip1:     u8[]                 // empty = single-buffer mode
+    var _front:      i32                  // 0 or 1: which buffer is currently in-flight
 
-    // Set the strip buffer and pixel format. Call before init().
-    fun set_strip(buf: u8[], fmt: PixelFormat)
-        strip  = buf
-        format = fmt
-
-    // Init after driver and strip are set. Defaults to R0.
-    fun init()
-        if format == PixelFormat.Mono
-            _phys_fill_fn = _strip_fill_mono
-        if format == PixelFormat.RGB565
-            _phys_fill_fn = _strip_fill_rgb565
-        set_rotation(Rotation.R0)
-
-    fun set_rotation(r: Rotation)
-        if r == Rotation.R0
-            _fill_fn = _fill_r0
-            view_w   = driver.width
-            view_h   = driver.height
-        if r == Rotation.R90
-            _fill_fn = _fill_r90
-            view_w   = driver.height
-            view_h   = driver.width
-        if r == Rotation.R180
-            _fill_fn = _fill_r180
-            view_w   = driver.width
-            view_h   = driver.height
-        if r == Rotation.R270
-            _fill_fn = _fill_r270
-            view_w   = driver.height
-            view_h   = driver.width
-
-    fun render(node: &Node, bias_x: i32, bias_y: i32)
-        match node
-            Canvas(c):
-                driver.flush(c.x + bias_x, c.y + bias_y, c.width, c.height, c.buf)
-
-    // ── private: physical strip writers ───────────────────────────────────────
-
-    fun _strip_pixel_mono(px: i32, py: i32, color: i32)
-        val stride: i32 = (driver.width + 7) / 8
-        val idx: i32    = py * stride + px / 8
-        if color != 0
-            strip[idx] = strip[idx] | u8(0x80 >> (px & 7))
+    // Init with one or two strip buffers. Pass empty buf1 for single-buffer mode.
+    // Rotation is fixed for the lifetime of this Gfx instance.
+    fun init(buf0: u8[], buf1: u8[], fmt: PixelFormat, r: Rotation)
+        _strip0 = buf0
+        _strip1 = buf1
+        format  = fmt
+        _front  = 0
+        driver.set_rotation(r)
+        if r == Rotation.R0 || r == Rotation.R180
+            view_w = driver.width
+            view_h = driver.height
         else
-            strip[idx] = strip[idx] & u8(~(0x80 >> (px & 7)))
+            view_w = driver.height
+            view_h = driver.width
+        _update_strip_count()
 
-    fun _strip_fill_mono(px: i32, py: i32, w: i32, h: i32, color: i32)
-        var iy: i32 = py
-        while iy < py + h
-            var ix: i32 = px
-            while ix < px + w
-                _strip_pixel_mono(ix, iy, color)
-                ix += 1
-            iy += 1
+    // Render the full scene tree into the driver, strip by strip.
+    fun render()
+        var strip_idx: i32 = 0
+        while strip_idx < strip_count
+            val win_y: i32 = strip_idx * strip_rows
+            var ctx: RenderCtx
+            ctx.buf    = _back_strip()
+            ctx.format = format
+            ctx.view_w = view_w
+            ctx.win_y  = win_y
+            ctx.win_h  = strip_rows
+            ctx.wire()
+            _clear_strip(ctx.buf)
+            _render_node(root, &ctx, 0, 0)
+            driver.wait()
+            _front = 1 - _front
+            driver.flush(0, win_y, view_w, strip_rows, _front_strip())
+            strip_idx += 1
 
-    fun _strip_pixel_rgb565(px: i32, py: i32, color: i32)
-        val idx: i32    = (py * driver.width + px) * 2
-        strip[idx]     = u8(color >> 8)
-        strip[idx + 1] = u8(color)
+    // ── private ───────────────────────────────────────────────────────────────
 
-    fun _strip_fill_rgb565(px: i32, py: i32, w: i32, h: i32, color: i32)
-        var iy: i32 = py
-        while iy < py + h
-            var ix: i32 = px
-            while ix < px + w
-                _strip_pixel_rgb565(ix, iy, color)
-                ix += 1
-            iy += 1
+    fun _update_strip_count()
+        var row_bytes: i32 = 0
+        if format == PixelFormat.Mono
+            row_bytes = (view_w + 7) / 8
+        if format == PixelFormat.RGB565
+            row_bytes = view_w * 2
+        if row_bytes > 0
+            strip_rows  = i32(_strip0.size()) / row_bytes
+            strip_count = view_h / strip_rows
 
-    // ── private: rotation-aware fill dispatch ─────────────────────────────────
+    fun _front_strip() u8[]
+        if _front == 0
+            return _strip0
+        return _strip1
 
-    fun _fill_r0(x: i32, y: i32, w: i32, h: i32, color: i32)
-        _phys_fill_fn(x, y, w, h, color)
+    fun _back_strip() u8[]
+        if _front == 0
+            return _strip1
+        return _strip0
 
-    fun _fill_r90(x: i32, y: i32, w: i32, h: i32, color: i32)
-        _phys_fill_fn(driver.width - y - h, x, h, w, color)
+    fun _clear_strip(buf: u8[])
+        memory_zero(buf, buf.size())
 
-    fun _fill_r180(x: i32, y: i32, w: i32, h: i32, color: i32)
-        _phys_fill_fn(driver.width - x - w, driver.height - y - h, w, h, color)
+    fun _render_node(node: &Node, ctx: &RenderCtx, bias_x: i32, bias_y: i32)
+        match node
+            Canvas(c): c.render(ctx, bias_x, bias_y)
 
-    fun _fill_r270(x: i32, y: i32, w: i32, h: i32, color: i32)
-        _phys_fill_fn(y, driver.height - x - w, h, w, color)

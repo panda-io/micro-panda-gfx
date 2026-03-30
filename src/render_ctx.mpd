@@ -1,0 +1,58 @@
+import pixel_format::*
+
+// Strip render context passed to every node's render method.
+// bias_x/bias_y are NOT in context — passed separately so containers can
+// accumulate their own offset as they recurse into children.
+//
+// All pixel coordinates are logical view coordinates.
+// RenderCtx translates py → strip-local row via win_y offset internally.
+
+class RenderCtx
+    var buf:          u8[]
+    var format:       PixelFormat
+    var view_w:       i32
+    var win_y:        i32          // top of this strip in logical view coordinates
+    var win_h:        i32          // height of this strip (= strip_rows)
+    var _set_pixel_fn: fun(i32, i32, i32)
+
+    // Wire _set_pixel_fn to the correct implementation for format.
+    // Call after setting buf/format/view_w/win_y/win_h.
+    fun wire()
+        if format == PixelFormat.Mono
+            _set_pixel_fn = _set_pixel_mono
+        if format == PixelFormat.RGB565
+            _set_pixel_fn = _set_pixel_rgb565
+
+    // ── public draw API (logical coords) ──────────────────────────────────────
+
+    fun set_pixel(px: i32, py: i32, color: i32)
+        if py < win_y || py >= win_y + win_h
+            return
+        _set_pixel_fn(px, py - win_y, color)
+
+    fun fill_rect(px: i32, py: i32, w: i32, h: i32, color: i32)
+        var iy: i32 = py
+        while iy < py + h
+            if iy >= win_y && iy < win_y + win_h
+                var ix: i32 = px
+                while ix < px + w
+                    _set_pixel_fn(ix, iy - win_y, color)
+                    ix += 1
+            iy += 1
+
+    // TODO: hline, vline — add when implementing widgets
+
+    // ── private: format-specific pixel writers (strip-local coords) ───────────
+
+    fun _set_pixel_mono(px: i32, spy: i32, color: i32)
+        val stride: i32 = (view_w + 7) / 8
+        val idx:    i32 = spy * stride + px / 8
+        if color != 0
+            buf[idx] = buf[idx] | u8(0x80 >> (px & 7))
+        else
+            buf[idx] = buf[idx] & u8(~(0x80 >> (px & 7)))
+
+    fun _set_pixel_rgb565(px: i32, spy: i32, color: i32)
+        val idx: i32    = (spy * view_w + px) * 2
+        buf[idx]        = u8(color >> 8)
+        buf[idx + 1]    = u8(color)
