@@ -85,23 +85,23 @@ class Graphics
             return  // dirty render with no dirty rects; nothing to do
 
         _context.buffer = _back_strip()
-        _context.window.x = _render_window.x
-        _context.window.width = _render_window.width
+        _context.viewpoint.x = _render_window.x
+        _context.viewpoint.width = _render_window.width
         var row_bytes := 0
         if _context.format == PixelFormat.Mono
-            row_bytes = (_context.window.width + 7) / 8
+            row_bytes = (_context.viewpoint.width + 7) / 8
         else
-            row_bytes = _context.window.width * 2
+            row_bytes = _context.viewpoint.width * 2
         val strip_rows  := (i32(_context.buffer.size()) + row_bytes - 1) / row_bytes
         val strip_count := (_render_window.height + strip_rows - 1) / strip_rows
         for strip_index in 0..strip_count
-            _context.window.y = _render_window.y + strip_index * strip_rows
-            _context.window.height = min<i32>(strip_rows, _render_window.y + _render_window.height - _context.window.y)
+            _context.viewpoint.y = _render_window.y + strip_index * strip_rows
+            _context.viewpoint.height = min<i32>(strip_rows, _render_window.y + _render_window.height - _context.viewpoint.y)
             _clear_strip(_context.buffer)
             _context.render_node(_root, 0, 0)
             _driver.wait()
             _front_buffer = 1 - _front_buffer
-            _driver.flush(&_context.window, _front_strip())
+            _driver.flush(&_context.viewpoint, _front_strip())
 
         if _dirty_render
             _render_window.x = 0
