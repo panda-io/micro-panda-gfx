@@ -1,7 +1,0 @@
-// Canvas storage format — indexed color only.
-// Canvas pixels are indices into a Palette whose colors are in PixelFormat.
-enum IndexFormat
-    Index1 = 0   // 1-bit index, 2-color palette
-    Index2 = 1   // 2-bit index, 4-color palette
-    Index4 = 2   // 4-bit index, 16-color palette
-    Index8 = 3   // 8-bit index, 256-color palette

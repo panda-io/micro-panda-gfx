@@ -1,5 +1,0 @@
-// Physical strip/driver format — direct color only.
-// Used by GraphicsDriver, RenderContext, and Graphics strip buffers.
-enum PixelFormat
-    Mono   = 0   // 1-bit, no palette — OLED framebuffer (0=off, 1=on)
-    RGB565 = 1   // 16-bit direct color

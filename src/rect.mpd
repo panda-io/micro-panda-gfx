@@ -1,3 +1,5 @@
+import point::Point
+
 // Axis-aligned rectangle in logical view coordinates.
 // Used for node bounding boxes, culling, and clipping.
 class Rect
@@ -5,3 +7,12 @@ class Rect
     var y:      i32
     var width:  i32
     var height: i32
+
+    @inline
+    fun intersect(rect: &Rect) bool
+        return rect.x < x + width && rect.x + rect.width > x &&
+               rect.y < y + height && rect.y + rect.height > y
+
+    @inline
+    fun contains(point: &Point) bool
+        return point.x >= x && point.x < x + width && point.y >= y && point.y < y + height

@@ -1,0 +1,5 @@
+// Point class definition
+
+class Point
+    var x: i32
+    var y: i32

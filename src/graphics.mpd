@@ -8,9 +8,9 @@
 //   Double-buffer: CPU renders strip N+1 into back while DMA sends strip N from front.
 //   Single-buffer: pass empty buffer1 — driver.wait/flush are synchronous.
 
-import rotation::*
-import pixel_format::*
+import math::min
 import node::*
+import rect::Rect
 import render_context::RenderContext
 import memory::memory_zero
 import memory::memory_set
@@ -21,90 +21,119 @@ class GraphicsDriver
     var width:        i32
     var height:       i32
     var set_rotation: fun(Rotation)
-    var wait:         fun()                          // wait for in-flight DMA flush to complete
-    var flush:        fun(i32, i32, i32, i32, u8[])  // start async flush (x, y, w, h, buffer)
+    var wait:         fun()             // wait for in-flight DMA flush to complete
+    var flush:        fun(&Rect, u8[])  // start async flush (rect, buffer)
 
 // ── Gfx ───────────────────────────────────────────────────────────────────────
 
+enum PixelFormat
+    Mono   = 0   // 1-bit, no palette — OLED framebuffer (0=off, 1=on)
+    RGB565 = 1   // 16-bit direct color
+
+// Index color type.
+enum IndexFormat
+    Index1 = 0   // 1-bit index, 2-color palette
+    Index2 = 1   // 2-bit index, 4-color palette
+    Index4 = 2   // 4-bit index, 16-color palette
+    Index8 = 3   // 8-bit index, 256-color palette
+
 class Graphics
-    var driver:      &GraphicsDriver
-    var root:        &Node                // any node type; owns the scene tree
-    var format:      PixelFormat
-    var view_w:      i32
-    var view_h:      i32
-    var strip_rows:  i32                  // rows per strip
-    var strip_count: i32                  // strips needed to cover full view height
-    var _strip0:     u8[]
-    var _strip1:     u8[]                 // empty = single-buffer mode
-    var _front:      i32                  // 0 or 1: which buffer is currently in-flight
-    var background:  u16                  // solid fill color for strip clear (RGB565); Mono: 0=black, non-zero=white
+    var _driver:        &GraphicsDriver
+    var _root:          &Node                // any node type; owns the scene tree
+    var _background:    u16                  // solid fill color for strip clear (RGB565); Mono: 0=black, non-zero=white
+    var _dirty_render:  bool                 // if true, render only dirty rects; requires dirty tracking and pre-pass to compute dirty rects
+    var _render_window: Rect                 // current strip render window (logical coords); updated by render loop before each strip
+    var _strip0:        u8[]
+    var _strip1:        u8[]                 // empty = single-buffer mode
+    var _single_buffer: bool                 // true if buffer1 is empty
+    var _front_buffer:  i32                  // 0 or 1: which buffer is currently in-flight
+    var _context:       RenderContext        // reusable context for render calls; updated with each strip's win_y
+
+    // ── public API ────────────────────────────────────────────────────────────
 
     // Init with one or two strip buffers. Pass empty buffer1 for single-buffer mode.
     // Rotation is fixed for the lifetime of this Gfx instance.
-    fun init(buffer0: u8[], buffer1: u8[], pixel_format: PixelFormat, r: Rotation)
+    fun init(driver: &GraphicsDriver, buffer0: u8[], buffer1: u8[], pixel_format: PixelFormat, background: u16, rotation: Rotation, dirty_render: bool)
+        _driver = driver
         _strip0 = buffer0
         _strip1 = buffer1
-        format  = pixel_format
-        _front  = 0
-        driver.set_rotation(r)
-        if r == Rotation.R0 || r == Rotation.R180
-            view_w = driver.width
-            view_h = driver.height
+        _context.format = pixel_format
+        _background = background
+        _dirty_render = dirty_render
+
+        if buffer1.size() == 0
+            _single_buffer = true
+        _render_window.x = 0
+        _render_window.y = 0
+        if _dirty_render
+            _render_window.width = 0
+            _render_window.height = 0
+        _driver.set_rotation(rotation)
+        if rotation == Rotation.R0 || rotation == Rotation.R180
+            if !_dirty_render
+                _render_window.width = _driver.width
+                _render_window.height = _driver.height
         else
-            view_w = driver.height
-            view_h = driver.width
-        _update_strip_count()
+            if !_dirty_render
+                _render_window.width = _driver.height
+                _render_window.height = _driver.width
+        _front_buffer  = 0
 
     // Render the full scene tree into the driver, strip by strip.
     fun render()
-        var strip_index: i32 = 0
-        while strip_index < strip_count
-            val win_y: i32 = strip_index * strip_rows
-            var ctx: RenderContext
-            ctx.buffer = _back_strip()
-            ctx.format = format
-            ctx.view_w = view_w
-            ctx.win_y  = win_y
-            ctx.win_h  = strip_rows
-            _clear_strip(ctx.buffer)
-            _render_node(root, &ctx, 0, 0)
-            driver.wait()
-            _front = 1 - _front
-            driver.flush(0, win_y, view_w, strip_rows, _front_strip())
-            strip_index += 1
+        if _render_window.width == 0 || _render_window.height == 0
+            return  // dirty render with no dirty rects; nothing to do
+
+        _context.buffer = _back_strip()
+        _context.window.x = _render_window.x
+        _context.window.width = _render_window.width
+        var row_bytes := 0
+        if _context.format == PixelFormat.Mono
+            row_bytes = (_context.window.width + 7) / 8
+        else
+            row_bytes = _context.window.width * 2
+        val strip_rows  := (i32(_context.buffer.size()) + row_bytes - 1) / row_bytes
+        val strip_count := (_render_window.height + strip_rows - 1) / strip_rows
+        for strip_index in 0..strip_count
+            _context.window.y = _render_window.y + strip_index * strip_rows
+            _context.window.height = min<i32>(strip_rows, _render_window.y + _render_window.height - _context.window.y)
+            _clear_strip(_context.buffer)
+            _context.render_node(_root, 0, 0)
+            _driver.wait()
+            _front_buffer = 1 - _front_buffer
+            _driver.flush(&_context.window, _front_strip())
+
+        if _dirty_render
+            _render_window.x = 0
+            _render_window.y = 0
+            _render_window.width = 0
+            _render_window.height = 0
 
     // ── private ───────────────────────────────────────────────────────────────
 
-    fun _update_strip_count()
-        var row_bytes: i32 = 0
-        if format == PixelFormat.Mono
-            row_bytes = (view_w + 7) / 8
-        if format == PixelFormat.RGB565
-            row_bytes = view_w * 2
-        if row_bytes > 0
-            strip_rows  = i32(_strip0.size()) / row_bytes
-            strip_count = view_h / strip_rows
-
     fun _front_strip() u8[]
-        if _front == 0
+        if _single_buffer || _front_buffer == 0
             return _strip0
         return _strip1
 
     fun _back_strip() u8[]
-        if _front == 0
-            return _strip1
-        return _strip0
+        if _single_buffer || _front_buffer == 1
+            return _strip0
+        return _strip1
 
     fun _clear_strip(buffer: u8[])
-        if format == PixelFormat.Mono
-            if background != u16(0)
-                memory_set(buffer, 0xFF, buffer.size())
-            else
+        if _context.format == PixelFormat.Mono
+            if _background == 0
                 memory_zero(buffer, buffer.size())
+            else
+                memory_set(buffer, 0xFF, buffer.size())
         else
-            memory_zero(buffer, buffer.size())
-
-    fun _render_node(node: &Node, ctx: &RenderContext, offset_x: i32, offset_y: i32)
-        match node
-            Canvas(c): c.render(ctx, offset_x, offset_y)
-
+            if _background == 0
+                memory_zero(buffer, buffer.size())
+            else
+                var i: u32 = 0
+                var size: u32 = buffer.size()
+                while i < size
+                    buffer[i] = u8(_background >> 8)
+                    buffer[i + 1] = u8(_background)
+                    i += 2
