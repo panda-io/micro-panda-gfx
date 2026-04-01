@@ -1,32 +1,33 @@
 // panda_gfx — strip-buffer GFX library.
-// One Gfx instance per display. Pass a &GfxDriver to support multiple screens.
+// One Gfx instance per display. Pass a &GraphicsDriver to support multiple screens.
 // Rotation is fixed at init and handled entirely by the driver.
 // Gfx writes to the strip in logical order; driver owns the physical transform.
 //
 // Strip render loop (per frame):
 //   For each strip: clear back buffer → render root node tree → wait → swap → flush.
 //   Double-buffer: CPU renders strip N+1 into back while DMA sends strip N from front.
-//   Single-buffer: pass empty buf1 — driver.wait/flush are synchronous.
+//   Single-buffer: pass empty buffer1 — driver.wait/flush are synchronous.
 
 import rotation::*
 import pixel_format::*
 import node::*
-import render_ctx::RenderCtx
+import render_context::RenderContext
 import memory::memory_zero
+import memory::memory_set
 
 // ── driver table ──────────────────────────────────────────────────────────────
 
-class GfxDriver
+class GraphicsDriver
     var width:        i32
     var height:       i32
     var set_rotation: fun(Rotation)
     var wait:         fun()                          // wait for in-flight DMA flush to complete
-    var flush:        fun(i32, i32, i32, i32, u8[])  // start async flush (x, y, w, h, buf)
+    var flush:        fun(i32, i32, i32, i32, u8[])  // start async flush (x, y, w, h, buffer)
 
 // ── Gfx ───────────────────────────────────────────────────────────────────────
 
-class Gfx
-    var driver:      &GfxDriver
+class Graphics
+    var driver:      &GraphicsDriver
     var root:        &Node                // any node type; owns the scene tree
     var format:      PixelFormat
     var view_w:      i32
@@ -36,13 +37,14 @@ class Gfx
     var _strip0:     u8[]
     var _strip1:     u8[]                 // empty = single-buffer mode
     var _front:      i32                  // 0 or 1: which buffer is currently in-flight
+    var background:  u16                  // solid fill color for strip clear (RGB565); Mono: 0=black, non-zero=white
 
-    // Init with one or two strip buffers. Pass empty buf1 for single-buffer mode.
+    // Init with one or two strip buffers. Pass empty buffer1 for single-buffer mode.
     // Rotation is fixed for the lifetime of this Gfx instance.
-    fun init(buf0: u8[], buf1: u8[], fmt: PixelFormat, r: Rotation)
-        _strip0 = buf0
-        _strip1 = buf1
-        format  = fmt
+    fun init(buffer0: u8[], buffer1: u8[], pixel_format: PixelFormat, r: Rotation)
+        _strip0 = buffer0
+        _strip1 = buffer1
+        format  = pixel_format
         _front  = 0
         driver.set_rotation(r)
         if r == Rotation.R0 || r == Rotation.R180
@@ -55,22 +57,21 @@ class Gfx
 
     // Render the full scene tree into the driver, strip by strip.
     fun render()
-        var strip_idx: i32 = 0
-        while strip_idx < strip_count
-            val win_y: i32 = strip_idx * strip_rows
-            var ctx: RenderCtx
-            ctx.buf    = _back_strip()
+        var strip_index: i32 = 0
+        while strip_index < strip_count
+            val win_y: i32 = strip_index * strip_rows
+            var ctx: RenderContext
+            ctx.buffer = _back_strip()
             ctx.format = format
             ctx.view_w = view_w
             ctx.win_y  = win_y
             ctx.win_h  = strip_rows
-            ctx.wire()
-            _clear_strip(ctx.buf)
+            _clear_strip(ctx.buffer)
             _render_node(root, &ctx, 0, 0)
             driver.wait()
             _front = 1 - _front
             driver.flush(0, win_y, view_w, strip_rows, _front_strip())
-            strip_idx += 1
+            strip_index += 1
 
     // ── private ───────────────────────────────────────────────────────────────
 
@@ -94,10 +95,16 @@ class Gfx
             return _strip1
         return _strip0
 
-    fun _clear_strip(buf: u8[])
-        memory_zero(buf, buf.size())
+    fun _clear_strip(buffer: u8[])
+        if format == PixelFormat.Mono
+            if background != u16(0)
+                memory_set(buffer, 0xFF, buffer.size())
+            else
+                memory_zero(buffer, buffer.size())
+        else
+            memory_zero(buffer, buffer.size())
 
-    fun _render_node(node: &Node, ctx: &RenderCtx, bias_x: i32, bias_y: i32)
+    fun _render_node(node: &Node, ctx: &RenderContext, offset_x: i32, offset_y: i32)
         match node
-            Canvas(c): c.render(ctx, bias_x, bias_y)
+            Canvas(c): c.render(ctx, offset_x, offset_y)
 

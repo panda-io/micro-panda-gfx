@@ -1,0 +1,64 @@
+import pixel_format::*
+import rect::Rect
+
+// Strip render context passed to every node's render method.
+// offset_x/offset_y are NOT in context — passed separately so containers can
+// accumulate their own offset as they recurse into children.
+//
+// All pixel coordinates are logical view coordinates.
+// RenderContext translates py → strip-local row via win_y offset internally.
+
+class RenderContext
+    var buffer: u8[]
+    var format: PixelFormat
+    var view_w: i32
+    var win_y:  i32          // top of this strip in logical view coordinates
+    var win_h:  i32          // height of this strip (= strip_rows)
+
+    // Returns true if rect overlaps this strip window. Use before rendering a node to skip it entirely.
+    @inline
+    fun intersect(rect: Rect) bool
+        return rect.x < view_w && rect.x + rect.width > 0 &&
+               rect.y < win_y + win_h && rect.y + rect.height > win_y
+
+    // ── public draw API (logical coords) ──────────────────────────────────────
+
+    fun set_pixel(px: i32, py: i32, color: i32)
+        if py < win_y || py >= win_y + win_h
+            return
+        val spy: i32 = py - win_y
+        if format == PixelFormat.Mono
+            _set_pixel_mono(px, spy, color)
+        else
+            _set_pixel_rgb565(px, spy, color)
+
+    fun fill_rect(px: i32, py: i32, w: i32, h: i32, color: i32)
+        var iy: i32 = py
+        while iy < py + h
+            if iy >= win_y && iy < win_y + win_h
+                val spy: i32 = iy - win_y
+                var ix: i32 = px
+                while ix < px + w
+                    if format == PixelFormat.Mono
+                        _set_pixel_mono(ix, spy, color)
+                    else
+                        _set_pixel_rgb565(ix, spy, color)
+                    ix += 1
+            iy += 1
+
+    // ── private: format-specific pixel writers (strip-local coords) ───────────
+
+    @inline
+    fun _set_pixel_mono(px: i32, spy: i32, color: i32)
+        val stride: i32 = (view_w + 7) / 8
+        val index:  i32 = spy * stride + px / 8
+        if color != 0
+            buffer[index] = buffer[index] | u8(0x80 >> (px & 7))
+        else
+            buffer[index] = buffer[index] & u8(~(0x80 >> (px & 7)))
+
+    @inline
+    fun _set_pixel_rgb565(px: i32, spy: i32, color: i32)
+        val index: i32 = (spy * view_w + px) * 2
+        buffer[index]     = u8(color >> 8)
+        buffer[index + 1] = u8(color)

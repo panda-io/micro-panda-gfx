@@ -1,18 +1,90 @@
-// Palette — maps pixel index values to RGB565 colors.
-// size must match the canvas PixelFormat:
-//   Index1 -> 2 entries
-//   Index2 -> 4 entries
-//   Index4 -> 16 entries
-//   Index8 -> 256 entries
+// Palette — a u16[] slice of RGB565 colors, indexed by canvas pixel values.
+// No class needed — a slice is already a reference, trivially shared across nodes.
+//
+// Palette size must match IndexFormat:
+//   Index1 →   2 entries
+//   Index2 →   4 entries
+//   Index4 →  16 entries
+//   Index8 → 256 entries
 
-class Palette
-    var colors: u16[]
+// ── transparent sentinel ──────────────────────────────────────────────────────
 
-    fun set(index: i32, rgb565: u16)
-        if index >= 0 && index < i32(colors.size())
-            colors[index] = rgb565
+// Sentinel RGB565 value used to mean "transparent / no pixel".
+// R=0, G=1, B=0 — visually pure black, never occurs in natural images.
+// Canvas and sprite renderers skip pixels whose palette entry equals TRANSPARENT.
+const TRANSPARENT: u16 = 0x0020
 
-    fun get(index: i32) u16
-        if index >= 0 && index < i32(colors.size())
-            return colors[index]
-        return u16(0)
+// ── standard palettes ─────────────────────────────────────────────────────────
+
+val PALETTE_MONO: u16[2] = [
+    0x0000,  // 0 Off   — black
+    0xFFFF,  // 1 On    — white
+]
+
+val PALETTE_GRAY4: u16[4] = [
+    0x0000,  // 0 Black
+    0x52AA,  // 1 DarkGray
+    0xAD55,  // 2 LightGray
+    0xFFFF,  // 3 White
+]
+
+val PALETTE_GRAY16: u16[16] = [
+    0x0000, 0x1082, 0x2104, 0x3186,  //  0– 3
+    0x4208, 0x528A, 0x630C, 0x738E,  //  4– 7
+    0x8410, 0x9492, 0xA514, 0xB596,  //  8–11
+    0xC618, 0xD69A, 0xE71C, 0xFFFF,  // 12–15
+]
+
+// Basic 16-color UI palette (Index4).
+val PALETTE_UI16: u16[16] = [
+    0x0000,  //  0 Black
+    0xFFFF,  //  1 White
+    0xF800,  //  2 Red
+    0x07E0,  //  3 Green
+    0x001F,  //  4 Blue
+    0xFFE0,  //  5 Yellow
+    0x07FF,  //  6 Cyan
+    0xF81F,  //  7 Magenta
+    0x39E7,  //  8 DarkGray
+    0xC618,  //  9 LightGray
+    0x8000,  // 10 DarkRed
+    0x0400,  // 11 DarkGreen
+    0x000F,  // 12 DarkBlue
+    0xFD20,  // 13 Orange
+    0x8010,  // 14 Purple
+    0x07A0,  // 15 Teal
+]
+
+// ── color index enums ─────────────────────────────────────────────────────────
+
+enum MonoColor
+    Off = 0
+    On  = 1
+
+enum Gray4Color
+    Black     = 0
+    DarkGray  = 1
+    LightGray = 2
+    White     = 3
+
+enum Gray16Color
+    Black = 0
+    White = 15
+
+enum UIColor
+    Black      =  0
+    White      =  1
+    Red        =  2
+    Green      =  3
+    Blue       =  4
+    Yellow     =  5
+    Cyan       =  6
+    Magenta    =  7
+    DarkGray   =  8
+    LightGray  =  9
+    DarkRed    = 10
+    DarkGreen  = 11
+    DarkBlue   = 12
+    Orange     = 13
+    Purple     = 14
+    Teal       = 15

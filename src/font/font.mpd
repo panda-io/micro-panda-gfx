@@ -10,8 +10,8 @@ class Font
     var data:      u8[]   // raw bitmap — all glyphs packed sequentially
     var width:     i32    // glyph width  in pixels (same for all glyphs)
     var height:    i32    // glyph height in pixels (same for all glyphs)
-    var x_advance: i32    // horizontal advance per glyph (pixels)
-    var y_advance: i32    // vertical advance per line    (pixels)
+    var advance_x: i32    // horizontal advance per glyph (pixels)
+    var advance_y: i32    // vertical advance per line    (pixels)
     var first:     u8     // first CP437 code in data
     var last:      u8     // last  CP437 code in data
 

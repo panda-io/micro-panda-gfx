@@ -8,7 +8,7 @@ import font::Font
 //   Normal glyphs: 5×7 in 6×8 cell — columns 0–4 = pixel data,
 //   column 5 = 0x00 (right gap). Bits 7 of cols 0–4 = 0 (bottom gap).
 
-val _data: u8[95][6] = [
+const _data: u8[95][6] = [
     [0x00, 0x00, 0x00, 0x00, 0x00, 0x00],  // ' ' 0x20
     [0x00, 0x00, 0x5F, 0x00, 0x00, 0x00],  // '!' 0x21
     [0x00, 0x07, 0x00, 0x07, 0x00, 0x00],  // '"' 0x22
@@ -112,8 +112,8 @@ fun font_default() &Font
     _font.data      = {&_data[0][0], 95 * 6}
     _font.width     = 6
     _font.height    = 8
-    _font.x_advance = 0
-    _font.y_advance = 0
+    _font.advance_x = 0
+    _font.advance_y = 0
     _font.first     = 0x20
     _font.last      = 0x7E
     return &_font
