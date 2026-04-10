@@ -21,9 +21,10 @@ import memory::memory_set
 class GraphicsDriver
     var width:        int
     var height:       int
-    var set_rotation: fun(Rotation)
-    var wait:         fun()             // wait for in-flight DMA flush to complete
-    var flush:        fun(&Rect, byte[])  // start async flush (rect, buffer)
+    var handle:       &void
+    var set_rotation: fun(&void, Rotation)
+    var wait:         fun(&void)             // wait for in-flight DMA flush to complete
+    var flush:        fun(&void, &Rect, byte[])  // start async flush (rect, buffer)
 
 // ── Gfx ───────────────────────────────────────────────────────────────────────
 
@@ -81,7 +82,7 @@ class Graphics
         if _dirty_render
             _render_window.width = 0
             _render_window.height = 0
-        _driver.set_rotation(rotation)
+        _driver.set_rotation(_driver.handle, rotation)
         if rotation == Rotation.R0 || rotation == Rotation.R180
             if !_dirty_render
                 _render_window.width = _driver.width
@@ -129,9 +130,9 @@ class Graphics
             _context.viewpoint.height = min<int>(strip_rows, _render_window.y + _render_window.height - _context.viewpoint.y)
             _clear_strip(_context.buffer)
             _root.renderer(&_context, &offset, _root.handle)
-            _driver.wait()
+            _driver.wait(_driver.handle)
             _front_buffer = 1 - _front_buffer
-            _driver.flush(&_context.viewpoint, _front_strip())
+            _driver.flush(_driver.handle, &_context.viewpoint, _front_strip())
 
         if _dirty_render
             _render_window.x = 0
@@ -154,12 +155,12 @@ class Graphics
     fun _clear_strip(buffer: byte[])
         if _context.format == PixelFormat.Mono
             if _background == 0
-                memory_zero(buffer, buffer.size())
+                memory_zero(buffer)
             else
-                memory_set(buffer, 0xFF, buffer.size())
+                memory_set(buffer, 0xFF)
         else
             if _background == 0
-                memory_zero(buffer, buffer.size())
+                memory_zero(buffer)
             else
                 var i := 0
                 var size := buffer.size()

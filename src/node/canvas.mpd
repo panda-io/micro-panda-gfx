@@ -21,7 +21,7 @@ fun render_canvas(context: &RenderContext, offset: &Point, handle: &void)
     viewpoint.y = canvas._viewpoint.y + offset.y
     viewpoint.width = canvas._viewpoint.width
     viewpoint.height = canvas._viewpoint.height
-    if !context.intersect(viewpoint)
+    if !context.intersect(&viewpoint)
         return
     viewpoint.x = max<int>(viewpoint.x, context.viewpoint.x)
     viewpoint.y = max<int>(viewpoint.y, context.viewpoint.y)
@@ -43,7 +43,7 @@ class Canvas
         return &_node
 
     @inline
-    fun draw_pixel(x: int, y: int, color: int)
+    fun draw_pixel(x: int, y: int, color: u16)
         match _index_format
             IndexFormat.Index1:
                 _set_pixel_index1(x, y, color)
@@ -55,14 +55,14 @@ class Canvas
                 _set_pixel_index8(x, y, color)
 
     @inline
-    fun draw_hline(x: int, y: int, width: int, color: int)
+    fun draw_hline(x: int, y: int, width: int, color: u16)
         _fill_rect(x, y, width, 1, color)
 
     @inline
-    fun draw_vline(x: int, y: int, height: int, color: int)
+    fun draw_vline(x: int, y: int, height: int, color: u16)
         _fill_rect(x, y, 1, height, color)
 
-    fun draw_line(x0: int, y0: int, x1: int, y1: int, color: int)
+    fun draw_line(x0: int, y0: int, x1: int, y1: int, color: u16)
         var dx: int  = _abs(x1 - x0)
         var dy: int  = _abs(y1 - y0)
         var sx: int  = _sign(x1 - x0)
@@ -82,20 +82,20 @@ class Canvas
                 err += dx
                 cy  += sy
 
-    fun draw_rect(x: int, y: int, width: int, height: int, color: int)
+    fun draw_rect(x: int, y: int, width: int, height: int, color: u16)
         _fill_rect(x,             y,              width, 1,          color)
         _fill_rect(x,             y + height - 1, width, 1,          color)
         _fill_rect(x,             y + 1,          1,     height - 2, color)
         _fill_rect(x + width - 1, y + 1,          1,     height - 2, color)
 
     @inline
-    fun fill_rect(x: int, y: int, width: int, height: int, color: int)
+    fun fill_rect(x: int, y: int, width: int, height: int, color: u16)
         _fill_rect(x, y, width, height, color)
 
     fun clear()
         _fill_rect(_viewpoint.x, _viewpoint.y, _viewpoint.width, _viewpoint.height, _background)
 
-    fun draw_circle(cx: int, cy: int, r: int, color: int)
+    fun draw_circle(cx: int, cy: int, r: int, color: u16)
         var x: int = 0
         var y: int = r
         var d: int = 1 - r
@@ -109,17 +109,17 @@ class Canvas
             x += 1
             _circle_8(cx, cy, x, y, color)
 
-    fun fill_circle(cx: int, cy: int, r: int, color: int)
+    fun fill_circle(cx: int, cy: int, r: int, color: u16)
         for dy in -r..r + 1
             val dx: int = _sqrt(r * r - dy * dy)
             _fill_rect(cx - dx, cy + dy, dx * 2 + 1, 1, color)
 
-    fun draw_triangle(x0: int, y0: int, x1: int, y1: int, x2: int, y2: int, color: int)
+    fun draw_triangle(x0: int, y0: int, x1: int, y1: int, x2: int, y2: int, color: u16)
         draw_line(x0, y0, x1, y1, color)
         draw_line(x1, y1, x2, y2, color)
         draw_line(x2, y2, x0, y0, color)
 
-    fun fill_triangle(x0: int, y0: int, x1: int, y1: int, x2: int, y2: int, color: int)
+    fun fill_triangle(x0: int, y0: int, x1: int, y1: int, x2: int, y2: int, color: u16)
         // sort vertices by y: y0 <= y1 <= y2
         var tx: int = 0
         var ty: int = 0
@@ -161,7 +161,7 @@ class Canvas
                 xb = tx
             _fill_rect(xa, y, xb - xa + 1, 1, color)
 
-    fun draw_round_rect(x: int, y: int, width: int, height: int, r: int, color: int)
+    fun draw_round_rect(x: int, y: int, width: int, height: int, r: int, color: u16)
         _fill_rect(x + r,         y,              width - 2 * r, 1,              color)
         _fill_rect(x + r,         y + height - 1, width - 2 * r, 1,              color)
         _fill_rect(x,             y + r,          1,             height - 2 * r, color)
@@ -185,7 +185,7 @@ class Canvas
                 py -= 1
             px += 1
 
-    fun fill_round_rect(x: int, y: int, width: int, height: int, r: int, color: int)
+    fun fill_round_rect(x: int, y: int, width: int, height: int, r: int, color: u16)
         _fill_rect(x + r, y, width - 2 * r, height, color)
         var px: int = 0
         var py: int = r
@@ -236,7 +236,7 @@ class Canvas
                 _render_index8(context, rect, offset)
 
     // Fill a rectangle — no bounds check, caller ensures valid coords.
-    fun _fill_rect(x: int, y: int, width: int, height: int, color: int)
+    fun _fill_rect(x: int, y: int, width: int, height: int, color: u16)
         if width <= 0 || height <= 0
             return
         val intersect := (x < _viewpoint.x + _viewpoint.width && x + width > _viewpoint.x &&
@@ -251,7 +251,7 @@ class Canvas
             for px in start_x..end_x
                 draw_pixel(px, py, color)
 
-    fun _circle_8(cx: int, cy: int, x: int, y: int, color: int)
+    fun _circle_8(cx: int, cy: int, x: int, y: int, color: u16)
         draw_pixel(cx + x, cy + y, color)
         draw_pixel(cx - x, cy + y, color)
         draw_pixel(cx + x, cy - y, color)
@@ -263,7 +263,7 @@ class Canvas
 
     // ── per-format pixel writers (canvas-absolute coords, bounds-checked) ─────
 
-    fun _set_pixel_index1(x: int, y: int, color: int)
+    fun _set_pixel_index1(x: int, y: int, color: u16)
         if x < _viewpoint.x || x >= _viewpoint.x + _viewpoint.width || y < _viewpoint.y || y >= _viewpoint.y + _viewpoint.height
             return
         val lx := x - _viewpoint.x
@@ -274,16 +274,16 @@ class Canvas
         else
             _buffer[index] = _buffer[index] & byte(~(0x80 >> (lx & 7)))
 
-    fun _set_pixel_index2(x: int, y: int, color: int)
+    fun _set_pixel_index2(x: int, y: int, color: u16)
         if x < _viewpoint.x || x >= _viewpoint.x + _viewpoint.width || y < _viewpoint.y || y >= _viewpoint.y + _viewpoint.height
             return
         val lx := x - _viewpoint.x
         val ly := y - _viewpoint.y
         val index: int = ly * ((_viewpoint.width + 3) / 4) + lx / 4
-        val shift: int = (3 - (lx & 3)) * 2
+        val shift: u16 = (3 - (u16(lx) & 3)) * 2
         _buffer[index] = (_buffer[index] & byte(~(0x03 << shift))) | byte((color & 0x03) << shift)
 
-    fun _set_pixel_index4(x: int, y: int, color: int)
+    fun _set_pixel_index4(x: int, y: int, color: u16)
         if x < _viewpoint.x || x >= _viewpoint.x + _viewpoint.width || y < _viewpoint.y || y >= _viewpoint.y + _viewpoint.height
             return
         val lx := x - _viewpoint.x
@@ -294,7 +294,7 @@ class Canvas
         else
             _buffer[index] = (_buffer[index] & byte(0xF0)) | byte(color & 0x0F)
 
-    fun _set_pixel_index8(x: int, y: int, color: int)
+    fun _set_pixel_index8(x: int, y: int, color: u16)
         if x < _viewpoint.x || x >= _viewpoint.x + _viewpoint.width || y < _viewpoint.y || y >= _viewpoint.y + _viewpoint.height
             return
         val lx := x - _viewpoint.x
