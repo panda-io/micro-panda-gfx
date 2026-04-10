@@ -101,7 +101,7 @@ class Graphics
             aligned_width = right - aligned_x
         var aligned: Rect = { aligned_x, rect.y, aligned_width, rect.height }
         if _render_window.width == 0 && _render_window.height == 0
-            _render_window.clone(&aligned)
+            _render_window.copy(&aligned)
         else
             _render_window.merge(&aligned)
 

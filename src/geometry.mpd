@@ -8,7 +8,7 @@ class Point
     var y: int
 
     @inline
-    fun clone(point: &Point)
+    fun copy(point: &Point)
         x = point.x
         y = point.y
 
@@ -21,7 +21,7 @@ class Rect
     var height: int
 
     @inline
-    fun clone(rect: &Rect)
+    fun copy(rect: &Rect)
         x = rect.x
         y = rect.y
         width = rect.width

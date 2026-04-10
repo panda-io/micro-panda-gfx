@@ -36,6 +36,23 @@ fun create_canvas(allocator: &Allocator, rect: &Rect
         canvas._render_fn = canvas._render_index8
         val buffer_size: int = rect.width * rect.height
         canvas._buffer = allocator.allocate_array<byte>(buffer_size)
+    canvas._node.handle = &void(canvas)
+    canvas._node.renderer = render_canvas
+
+fun render_canvas(context: &RenderContext, offset: &Point, handle: &void)
+    val canvas: &Canvas = &Canvas(handle)
+    val viewpoint: Rect
+    viewpoint.x = canvas._viewpoint.x + offset.x
+    viewpoint.y = canvas._viewpoint.y + offset.y
+    viewpoint.width = canvas._viewpoint.width
+    viewpoint.height = canvas._viewpoint.height
+    if !context.intersect(viewpoint)
+        return
+    viewpoint.x = max<int>(viewpoint.x, context.viewpoint.x)
+    viewpoint.y = max<int>(viewpoint.y, context.viewpoint.y)
+    viewpoint.width = min<int>(viewpoint.x + viewpoint.width, context.viewpoint.x + context.viewpoint.width) - viewpoint.x
+    viewpoint.height = min<int>(viewpoint.y + viewpoint.height, context.viewpoint.y + context.viewpoint.height) - viewpoint.y
+    canvas._render_fn(context, &viewpoint, offset)
 
 class Canvas
     var _node:          Node
@@ -45,29 +62,12 @@ class Canvas
     var _index_format:  IndexFormat
     var _palette:       u16[]
     var _set_pixel_fn:  fun(int, int, int)
-    var _render_fn:     fun(&RenderContext, &Rect, int, int)
+    var _render_fn:     fun(&RenderContext, &Rect, &Point)
 
     // ── public primitives ──────────────────────────────────────────────────────
 
     fun get_node() &Node
         return &_node
-
-    // Render this canvas into the strip buffer described by ctx.
-    // offset_x/offset_y: accumulated offset from parent containers.
-    // Clips to the strip window [ctx.win_y, ctx.win_y + ctx.win_h).
-    fun render(context: &RenderContext, offset_x: int, offset_y: int)
-        val viewpoint: Rect
-        viewpoint.x = _viewpoint.x + offset_x
-        viewpoint.y = _viewpoint.y + offset_y
-        viewpoint.width = _viewpoint.width
-        viewpoint.height = _viewpoint.height
-        if !context.intersect(viewpoint)
-            return
-        viewpoint.x = max<int>(viewpoint.x, context.viewpoint.x)
-        viewpoint.y = max<int>(viewpoint.y, context.viewpoint.y)
-        viewpoint.width = min<int>(viewpoint.x + viewpoint.width, context.viewpoint.x + context.viewpoint.width) - viewpoint.x
-        viewpoint.height = min<int>(viewpoint.y + viewpoint.height, context.viewpoint.y + context.viewpoint.height) - viewpoint.y
-        _render_fn(context, &viewpoint, offset_x, offset_y)
 
     @inline
     fun draw_pixel(x: int, y: int, color: int)
@@ -210,9 +210,9 @@ class Canvas
         var py: int = r
         var d: int  = 1 - r
         while px <= py
-            _fill_rect(x + width - 1 - r - py + 1, y + r - px,         py * 2 - 1, 1, color)
+            _fill_rect(x + width - 1 - r - py + 1, y + r - px,              py * 2 - 1, 1, color)
             _fill_rect(x + width - 1 - r - py + 1, y + height - 1 - r + px, py * 2 - 1, 1, color)
-            _fill_rect(x + width - 1 - r - px + 1, y + r - py,         px * 2 - 1, 1, color)
+            _fill_rect(x + width - 1 - r - px + 1, y + r - py,              px * 2 - 1, 1, color)
             _fill_rect(x + width - 1 - r - px + 1, y + height - 1 - r + py, px * 2 - 1, 1, color)
             if d < 0
                 d += 2 * px + 3
@@ -291,22 +291,22 @@ class Canvas
 
     // ── per-format strip renderers ────────────────────────────────────────────
     // viewpoint: clipped screen-space rect to render. lx/ly = canvas-local coords.
-    fun _render_index1(context: &RenderContext, viewpoint: &Rect, offset_x: int, offset_y: int)
+    fun _render_index1(context: &RenderContext, viewpoint: &Rect, offset: &Point)
         for y in viewpoint.y..viewpoint.y + viewpoint.height
-            val ly := y - _viewpoint.y - offset_y
+            val ly := y - _viewpoint.y - offset.y
             for x in viewpoint.x..viewpoint.x + viewpoint.width
-                val lx  := x - _viewpoint.x - offset_x
+                val lx  := x - _viewpoint.x - offset.x
                 val index: int = ly * ((_viewpoint.width + 7) / 8) + lx / 8
                 val color: int = if (_buffer[index] & byte(0x80 >> (lx & 7))) != 0 then _palette[1] else _palette[0]
                 if color != TRANSPARENT
                     val point: Point = { x, y }
                     context.set_pixel(&point, color)
 
-    fun _render_index2(context: &RenderContext, viewpoint: &Rect, offset_x: int, offset_y: int)
+    fun _render_index2(context: &RenderContext, viewpoint: &Rect, offset: &Point)
         for y in viewpoint.y..viewpoint.y + viewpoint.height
-            val ly := y - _viewpoint.y - offset_y
+            val ly := y - _viewpoint.y - offset.y
             for x in viewpoint.x..viewpoint.x + viewpoint.width
-                val lx    := x - _viewpoint.x - offset_x
+                val lx    := x - _viewpoint.x - offset.x
                 val index: int = ly * ((_viewpoint.width + 3) / 4) + lx / 4
                 val shift: int = (3 - (lx & 3)) * 2
                 val color: int = _palette[(_buffer[index] >> shift) & 0x03]
@@ -314,11 +314,11 @@ class Canvas
                     val point: Point = { x, y }
                     context.set_pixel(&point, color)
 
-    fun _render_index4(context: &RenderContext, viewpoint: &Rect, offset_x: int, offset_y: int)
+    fun _render_index4(context: &RenderContext, viewpoint: &Rect, offset: &Point)
         for y in viewpoint.y..viewpoint.y + viewpoint.height
-            val ly := y - _viewpoint.y - offset_y
+            val ly := y - _viewpoint.y - offset.y
             for x in viewpoint.x..viewpoint.x + viewpoint.width
-                val lx    := x - _viewpoint.x - offset_x
+                val lx    := x - _viewpoint.x - offset.x
                 val index: int = ly * ((_viewpoint.width + 1) / 2) + lx / 2
                 val palette_index: int = if (lx & 1) == 0 then (_buffer[index] >> 4) & 0x0F else _buffer[index] & 0x0F
                 val color: int = _palette[palette_index]
@@ -326,11 +326,11 @@ class Canvas
                     val point: Point = { x, y }
                     context.set_pixel(&point, color)
 
-    fun _render_index8(context: &RenderContext, viewpoint: &Rect, offset_x: int, offset_y: int)
+    fun _render_index8(context: &RenderContext, viewpoint: &Rect, offset: &Point)
         for y in viewpoint.y..viewpoint.y + viewpoint.height
-            val ly := y - _viewpoint.y - offset_y
+            val ly := y - _viewpoint.y - offset.y
             for x in viewpoint.x..viewpoint.x + viewpoint.width
-                val lx    := x - _viewpoint.x - offset_x
+                val lx    := x - _viewpoint.x - offset.x
                 val color: int = _palette[_buffer[ly * _viewpoint.width + lx]]
                 if color != TRANSPARENT
                     val point: Point = { x, y }
