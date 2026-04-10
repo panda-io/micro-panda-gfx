@@ -193,6 +193,7 @@ static inline int32_t math__ceil_fixed(int32_t value);
 static inline int32_t math__round_fixed(int32_t value);
 void Allocator_init(Allocator* this, __Slice_uint8_t mem);
 static inline void* Allocator_allocate(Allocator* this, size_t __sizeof_T);
+static inline int32_t Allocator_available(Allocator* this);
 static inline void Allocator_reset(Allocator* this);
 static inline void memory__memory_set(__Slice_uint8_t dst, uint8_t value);
 static inline void memory__memory_copy(__Slice_uint8_t dst, __Slice_uint8_t src, int32_t size);
@@ -899,6 +900,10 @@ static inline void* Allocator_allocate(Allocator* this, size_t __sizeof_T) {
   void* ptr = (void*)((&this->_memory.ptr[this->_cursor]));
   (this->_cursor = (((this->_cursor + size) + 3) & (~((int32_t)(3)))));
   return ptr;
+}
+
+static inline int32_t Allocator_available(Allocator* this) {
+  return (this->_memory.size - this->_cursor);
 }
 
 static inline void Allocator_reset(Allocator* this) {
