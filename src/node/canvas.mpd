@@ -4,15 +4,15 @@ import render_context::RenderContext
 import palette::TRANSPARENT
 import math::*
 import node::Node
-import mcu32::allocator::Allocator
+import mcu32.allocator::Allocator
 
 // Canvas — indexed pixel buffer. color parameter is always a palette index.
 // All draw calls write into buffer. No flush, no driver, no rotation.
 
-fun create_canvas(allocator: &Allocator, rect: &Rect
+fun create_canvas(allocator: &Allocator, rect: &Rect,
         background: u16, index_format: IndexFormat, palette: u16[]) &Canvas
     val canvas: &Canvas = allocator.allocate<Canvas>()
-    canvas._viewpoint.clone(rect)
+    canvas._viewpoint.copy(rect)
     canvas._background = background
     canvas._index_format = index_format
     canvas._palette = palette
@@ -297,7 +297,9 @@ class Canvas
             for x in viewpoint.x..viewpoint.x + viewpoint.width
                 val lx  := x - _viewpoint.x - offset.x
                 val index: int = ly * ((_viewpoint.width + 7) / 8) + lx / 8
-                val color: int = if (_buffer[index] & byte(0x80 >> (lx & 7))) != 0 then _palette[1] else _palette[0]
+                val color: int = _palette[0]
+                if (_buffer[index] & byte(0x80 >> (lx & 7))) != 0 
+                    color = _palette[1]
                 if color != TRANSPARENT
                     val point: Point = { x, y }
                     context.set_pixel(&point, color)
@@ -320,7 +322,9 @@ class Canvas
             for x in viewpoint.x..viewpoint.x + viewpoint.width
                 val lx    := x - _viewpoint.x - offset.x
                 val index: int = ly * ((_viewpoint.width + 1) / 2) + lx / 2
-                val palette_index: int = if (lx & 1) == 0 then (_buffer[index] >> 4) & 0x0F else _buffer[index] & 0x0F
+                val palette_index: int = _buffer[index] & 0x0F
+                if (lx & 1) == 0 
+                    palette_index = (_buffer[index] >> 4) & 0x0F
                 val color: int = _palette[palette_index]
                 if color != TRANSPARENT
                     val point: Point = { x, y }
