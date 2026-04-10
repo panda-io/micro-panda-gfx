@@ -66,15 +66,13 @@ typedef enum {
   UIColor_Teal = 15,
 } UIColor;
 
-typedef void (*__Fn_void_int32_t_int32_t_int32_t)(int32_t, int32_t, int32_t);
-typedef void (*__Fn_void_RenderContext_p_Rect_p_Point_p)(RenderContext*, Rect*, Point*);
+typedef struct { uint8_t* ptr; int32_t size; } __Slice_uint8_t;
+typedef struct { uint16_t* ptr; int32_t size; } __Slice_uint16_t;
+
 typedef void (*__Fn_void_Rotation)(Rotation);
 typedef void (*__Fn_void)(void);
 typedef void (*__Fn_void_Rect_p_Slice_uint8_t)(Rect*, __Slice_uint8_t);
 typedef void (*__Fn_void_RenderContext_p_Point_p_void_p)(RenderContext*, Point*, void*);
-
-typedef struct { uint8_t* ptr; int32_t size; } __Slice_uint8_t;
-typedef struct { uint16_t* ptr; int32_t size; } __Slice_uint16_t;
 
 #include <math.h>
 #include <string.h>
@@ -122,8 +120,6 @@ struct Canvas {
   uint16_t _background;
   IndexFormat _index_format;
   __Slice_uint16_t _palette;
-  __Fn_void_int32_t_int32_t_int32_t _set_pixel_fn;
-  __Fn_void_RenderContext_p_Rect_p_Point_p _render_fn;
 };
 
 struct Graphics {
@@ -156,6 +152,8 @@ void Canvas_draw_triangle(Canvas* this, int32_t x0, int32_t y0, int32_t x1, int3
 void Canvas_fill_triangle(Canvas* this, int32_t x0, int32_t y0, int32_t x1, int32_t y1, int32_t x2, int32_t y2, int32_t color);
 void Canvas_draw_round_rect(Canvas* this, int32_t x, int32_t y, int32_t width, int32_t height, int32_t r, int32_t color);
 void Canvas_fill_round_rect(Canvas* this, int32_t x, int32_t y, int32_t width, int32_t height, int32_t r, int32_t color);
+static Canvas* Canvas__init(Canvas* this, Allocator* allocator, Rect* rect, uint16_t background, IndexFormat index_format, __Slice_uint16_t palette);
+static inline void Canvas__render(Canvas* this, RenderContext* context, Rect* rect, Point* offset);
 static void Canvas__fill_rect(Canvas* this, int32_t x, int32_t y, int32_t width, int32_t height, int32_t color);
 static void Canvas__circle_8(Canvas* this, int32_t cx, int32_t cy, int32_t x, int32_t y, int32_t color);
 static void Canvas__set_pixel_index1(Canvas* this, int32_t x, int32_t y, int32_t color);
@@ -197,9 +195,9 @@ static inline void* Allocator_allocate(Allocator* this, size_t __sizeof_T);
 static inline void Allocator_reset(Allocator* this);
 static inline void memory__memory_zero(__Slice_uint8_t dst, int32_t size);
 static inline Canvas* Allocator_allocate_Canvas(Allocator* this);
-static inline __Slice_uint8_t Allocator_allocate_array_uint8_t(Allocator* this, int32_t length);
 static inline int32_t math__max_int32_t(int32_t a, int32_t b);
 static inline int32_t math__min_int32_t(int32_t a, int32_t b);
+static inline __Slice_uint8_t Allocator_allocate_array_uint8_t(Allocator* this, int32_t length);
 
 const uint16_t palette__TRANSPARENT = 0x0020;
 uint16_t palette__PALETTE_MONO[2] = {0x0000, 0xFFFF};
@@ -215,36 +213,7 @@ static char** __mp_argv = NULL;
 
 Canvas* node__canvas__create_canvas(Allocator* allocator, Rect* rect, uint16_t background, IndexFormat index_format, __Slice_uint16_t palette) {
   Canvas* canvas = Allocator_allocate_Canvas(allocator);
-  Rect_copy((&canvas->_viewpoint), rect);
-  (canvas->_background = background);
-  (canvas->_index_format = index_format);
-  (canvas->_palette = palette);
-  if ((index_format == IndexFormat_Index1)) {
-    (canvas->_set_pixel_fn = canvas->_set_pixel_index1);
-    (canvas->_render_fn = canvas->_render_index1);
-    int32_t buffer_size = (((rect->width + 7) / 8) * rect->height);
-    (canvas->_buffer = Allocator_allocate_array_uint8_t(allocator, buffer_size));
-  }
-  if ((index_format == IndexFormat_Index2)) {
-    (canvas->_set_pixel_fn = canvas->_set_pixel_index2);
-    (canvas->_render_fn = canvas->_render_index2);
-    int32_t buffer_size = (((rect->width + 3) / 4) * rect->height);
-    (canvas->_buffer = Allocator_allocate_array_uint8_t(allocator, buffer_size));
-  }
-  if ((index_format == IndexFormat_Index4)) {
-    (canvas->_set_pixel_fn = canvas->_set_pixel_index4);
-    (canvas->_render_fn = canvas->_render_index4);
-    int32_t buffer_size = (((rect->width + 1) / 2) * rect->height);
-    (canvas->_buffer = Allocator_allocate_array_uint8_t(allocator, buffer_size));
-  }
-  if ((index_format == IndexFormat_Index8)) {
-    (canvas->_set_pixel_fn = canvas->_set_pixel_index8);
-    (canvas->_render_fn = canvas->_render_index8);
-    int32_t buffer_size = (rect->width * rect->height);
-    (canvas->_buffer = Allocator_allocate_array_uint8_t(allocator, buffer_size));
-  }
-  (canvas->_node.handle = ((void*)(canvas)));
-  (canvas->_node.renderer = node__canvas__render_canvas);
+  Canvas__init(canvas, allocator, rect, background, index_format, palette);
 }
 
 void node__canvas__render_canvas(RenderContext* context, Point* offset, void* handle) {
@@ -261,7 +230,7 @@ void node__canvas__render_canvas(RenderContext* context, Point* offset, void* ha
   (viewpoint.y = math__max_int32_t(viewpoint.y, context->viewpoint.y));
   (viewpoint.width = (math__min_int32_t((viewpoint.x + viewpoint.width), (context->viewpoint.x + context->viewpoint.width)) - viewpoint.x));
   (viewpoint.height = (math__min_int32_t((viewpoint.y + viewpoint.height), (context->viewpoint.y + context->viewpoint.height)) - viewpoint.y));
-  canvas->_render_fn(context, (&viewpoint), offset);
+  Canvas__render(canvas, context, (&viewpoint), offset);
 }
 
 Node* Canvas_get_node(Canvas* this) {
@@ -269,7 +238,24 @@ Node* Canvas_get_node(Canvas* this) {
 }
 
 static inline void Canvas_draw_pixel(Canvas* this, int32_t x, int32_t y, int32_t color) {
-  this->_set_pixel_fn(x, y, color);
+  switch (this->_index_format) {
+    case IndexFormat_Index1: {
+      Canvas__set_pixel_index1(this, x, y, color);
+      break;
+    }
+    case IndexFormat_Index2: {
+      Canvas__set_pixel_index2(this, x, y, color);
+      break;
+    }
+    case IndexFormat_Index4: {
+      Canvas__set_pixel_index4(this, x, y, color);
+      break;
+    }
+    case IndexFormat_Index8: {
+      Canvas__set_pixel_index8(this, x, y, color);
+      break;
+    }
+  }
 }
 
 static inline void Canvas_draw_hline(Canvas* this, int32_t x, int32_t y, int32_t width, int32_t color) {
@@ -443,6 +429,52 @@ void Canvas_fill_round_rect(Canvas* this, int32_t x, int32_t y, int32_t width, i
       (py -= 1);
     }
     (px += 1);
+  }
+}
+
+static Canvas* Canvas__init(Canvas* this, Allocator* allocator, Rect* rect, uint16_t background, IndexFormat index_format, __Slice_uint16_t palette) {
+  Rect_copy((&this->_viewpoint), rect);
+  (this->_background = background);
+  (this->_index_format = index_format);
+  (this->_palette = palette);
+  int32_t buffer_size = 0;
+  if ((index_format == IndexFormat_Index1)) {
+    (buffer_size = (((rect->width + 7) / 8) * rect->height));
+  }
+  if ((index_format == IndexFormat_Index2)) {
+    (buffer_size = (((rect->width + 3) / 4) * rect->height));
+  }
+  if ((index_format == IndexFormat_Index4)) {
+    (buffer_size = (((rect->width + 1) / 2) * rect->height));
+  }
+  if ((index_format == IndexFormat_Index8)) {
+    (buffer_size = (rect->width * rect->height));
+  }
+  if ((buffer_size > 0)) {
+    (this->_buffer = Allocator_allocate_array_uint8_t(allocator, buffer_size));
+  }
+  (this->_node.handle = ((void*)(this)));
+  (this->_node.renderer = node__canvas__render_canvas);
+}
+
+static inline void Canvas__render(Canvas* this, RenderContext* context, Rect* rect, Point* offset) {
+  switch (this->_index_format) {
+    case IndexFormat_Index1: {
+      Canvas__render_index1(this, context, rect, offset);
+      break;
+    }
+    case IndexFormat_Index2: {
+      Canvas__render_index2(this, context, rect, offset);
+      break;
+    }
+    case IndexFormat_Index4: {
+      Canvas__render_index4(this, context, rect, offset);
+      break;
+    }
+    case IndexFormat_Index8: {
+      Canvas__render_index8(this, context, rect, offset);
+      break;
+    }
   }
 }
 
@@ -883,16 +915,6 @@ static inline Canvas* Allocator_allocate_Canvas(Allocator* this) {
   return ptr;
 }
 
-static inline __Slice_uint8_t Allocator_allocate_array_uint8_t(Allocator* this, int32_t length) {
-  uint64_t size = (sizeof(uint8_t) * length);
-  if (((this->_cursor + size) > this->_memory.size)) {
-    return (__Slice_uint8_t){NULL, 0};
-  }
-  uint8_t* ptr = ((uint8_t*)((&this->_memory.ptr[this->_cursor])));
-  (this->_cursor = (((this->_cursor + size) + 3) & (~((int32_t)(3)))));
-  return (__Slice_uint8_t){ptr, length};
-}
-
 static inline int32_t math__max_int32_t(int32_t a, int32_t b) {
   if ((a > b)) {
     return a;
@@ -905,6 +927,16 @@ static inline int32_t math__min_int32_t(int32_t a, int32_t b) {
     return a;
   }
   return b;
+}
+
+static inline __Slice_uint8_t Allocator_allocate_array_uint8_t(Allocator* this, int32_t length) {
+  uint64_t size = (sizeof(uint8_t) * length);
+  if (((this->_cursor + size) > this->_memory.size)) {
+    return (__Slice_uint8_t){NULL, 0};
+  }
+  uint8_t* ptr = ((uint8_t*)((&this->_memory.ptr[this->_cursor])));
+  (this->_cursor = (((this->_cursor + size) + 3) & (~((int32_t)(3)))));
+  return (__Slice_uint8_t){ptr, length};
 }
 
 int main(int argc, char** argv) { __mp_argc = argc; __mp_argv = argv; main__main(); return 0; }

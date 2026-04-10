@@ -12,32 +12,7 @@ import mcu32.allocator::Allocator
 fun create_canvas(allocator: &Allocator, rect: &Rect,
         background: u16, index_format: IndexFormat, palette: u16[]) &Canvas
     val canvas: &Canvas = allocator.allocate<Canvas>()
-    canvas._viewpoint.copy(rect)
-    canvas._background = background
-    canvas._index_format = index_format
-    canvas._palette = palette
-    if index_format == IndexFormat.Index1
-        canvas._set_pixel_fn = canvas._set_pixel_index1
-        canvas._render_fn = canvas._render_index1
-        val buffer_size: int = ((rect.width + 7) / 8) * rect.height
-        canvas._buffer = allocator.allocate_array<byte>(buffer_size)
-    if index_format == IndexFormat.Index2
-        canvas._set_pixel_fn = canvas._set_pixel_index2
-        canvas._render_fn = canvas._render_index2
-        val buffer_size: int = ((rect.width + 3) / 4) * rect.height
-        canvas._buffer = allocator.allocate_array<byte>(buffer_size)
-    if index_format == IndexFormat.Index4
-        canvas._set_pixel_fn = canvas._set_pixel_index4
-        canvas._render_fn = canvas._render_index4
-        val buffer_size: int = ((rect.width + 1) / 2) * rect.height
-        canvas._buffer = allocator.allocate_array<byte>(buffer_size)
-    if index_format == IndexFormat.Index8
-        canvas._set_pixel_fn = canvas._set_pixel_index8
-        canvas._render_fn = canvas._render_index8
-        val buffer_size: int = rect.width * rect.height
-        canvas._buffer = allocator.allocate_array<byte>(buffer_size)
-    canvas._node.handle = &void(canvas)
-    canvas._node.renderer = render_canvas
+    canvas._init(allocator, rect, background, index_format, palette)
 
 fun render_canvas(context: &RenderContext, offset: &Point, handle: &void)
     val canvas: &Canvas = &Canvas(handle)
@@ -52,7 +27,7 @@ fun render_canvas(context: &RenderContext, offset: &Point, handle: &void)
     viewpoint.y = max<int>(viewpoint.y, context.viewpoint.y)
     viewpoint.width = min<int>(viewpoint.x + viewpoint.width, context.viewpoint.x + context.viewpoint.width) - viewpoint.x
     viewpoint.height = min<int>(viewpoint.y + viewpoint.height, context.viewpoint.y + context.viewpoint.height) - viewpoint.y
-    canvas._render_fn(context, &viewpoint, offset)
+    canvas._render(context, &viewpoint, offset)
 
 class Canvas
     var _node:          Node
@@ -61,8 +36,6 @@ class Canvas
     var _background:    u16               // TRANSPARENT or a palette RGB565 color
     var _index_format:  IndexFormat
     var _palette:       u16[]
-    var _set_pixel_fn:  fun(int, int, int)
-    var _render_fn:     fun(&RenderContext, &Rect, &Point)
 
     // ── public primitives ──────────────────────────────────────────────────────
 
@@ -71,7 +44,15 @@ class Canvas
 
     @inline
     fun draw_pixel(x: int, y: int, color: int)
-        _set_pixel_fn(x, y, color)
+        match _index_format
+            IndexFormat.Index1:
+                _set_pixel_index1(x, y, color)
+            IndexFormat.Index2:
+                _set_pixel_index2(x, y, color)
+            IndexFormat.Index4:
+                _set_pixel_index4(x, y, color)
+            IndexFormat.Index8:
+                _set_pixel_index8(x, y, color)
 
     @inline
     fun draw_hline(x: int, y: int, width: int, color: int)
@@ -222,6 +203,37 @@ class Canvas
             px += 1
 
     // ── private helpers ────────────────────────────────────────────────────────
+    fun _init(allocator: &Allocator, rect: &Rect,
+        background: u16, index_format: IndexFormat, palette: u16[]) &Canvas
+        _viewpoint.copy(rect)
+        _background = background
+        _index_format = index_format
+        _palette = palette
+        var buffer_size: int = 0
+        if index_format == IndexFormat.Index1
+            buffer_size = ((rect.width + 7) / 8) * rect.height
+        if index_format == IndexFormat.Index2
+            buffer_size = ((rect.width + 3) / 4) * rect.height
+        if index_format == IndexFormat.Index4
+            buffer_size = ((rect.width + 1) / 2) * rect.height
+        if index_format == IndexFormat.Index8
+            buffer_size = rect.width * rect.height
+        if buffer_size > 0
+            _buffer = allocator.allocate_array<byte>(buffer_size)
+        _node.handle = &void(this)
+        _node.renderer = render_canvas
+
+    @inline
+    fun _render(context: &RenderContext, rect: &Rect, offset: &Point)
+        match _index_format
+            IndexFormat.Index1:
+                _render_index1(context, rect, offset)
+            IndexFormat.Index2:
+                _render_index2(context, rect, offset)
+            IndexFormat.Index4:
+                _render_index4(context, rect, offset)
+            IndexFormat.Index8:
+                _render_index8(context, rect, offset)
 
     // Fill a rectangle — no bounds check, caller ensures valid coords.
     fun _fill_rect(x: int, y: int, width: int, height: int, color: int)
