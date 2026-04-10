@@ -58,6 +58,9 @@ class Graphics
 
     // ── public API ────────────────────────────────────────────────────────────
 
+    fun set_root(node: &Node)                                                                                                                                                                               
+        _root = node    
+
     // Init with one or two strip buffers. Pass empty buffer1 for single-buffer mode.
     // Rotation is fixed for the lifetime of this Gfx instance.
     fun init(driver: &GraphicsDriver, 
