@@ -29,7 +29,6 @@ class RenderContext
             _set_pixel_rgb565(px, py, color)
 
     fun fill_rect(rect: &Rect, color: u16)
-        var py: int = rect.y
         for py in rect.y..rect.y + rect.height
             if py >= viewpoint.y && py < viewpoint.y + viewpoint.height
                 for px in rect.x..rect.x + rect.width
