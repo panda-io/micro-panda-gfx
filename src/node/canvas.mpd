@@ -297,8 +297,8 @@ class Canvas
             for x in viewpoint.x..viewpoint.x + viewpoint.width
                 val lx  := x - _viewpoint.x - offset.x
                 val index: int = ly * ((_viewpoint.width + 7) / 8) + lx / 8
-                val color: int = _palette[0]
-                if (_buffer[index] & byte(0x80 >> (lx & 7))) != 0 
+                var color: u16 = _palette[0]
+                if (_buffer[index] & byte(0x80 >> (lx & 7))) != 0
                     color = _palette[1]
                 if color != TRANSPARENT
                     val point: Point = { x, y }
@@ -311,7 +311,7 @@ class Canvas
                 val lx    := x - _viewpoint.x - offset.x
                 val index: int = ly * ((_viewpoint.width + 3) / 4) + lx / 4
                 val shift: int = (3 - (lx & 3)) * 2
-                val color: int = _palette[(_buffer[index] >> shift) & 0x03]
+                val color: u16 = _palette[(int(_buffer[index]) >> shift) & 0x03]
                 if color != TRANSPARENT
                     val point: Point = { x, y }
                     context.set_pixel(&point, color)
@@ -322,10 +322,10 @@ class Canvas
             for x in viewpoint.x..viewpoint.x + viewpoint.width
                 val lx    := x - _viewpoint.x - offset.x
                 val index: int = ly * ((_viewpoint.width + 1) / 2) + lx / 2
-                val palette_index: int = _buffer[index] & 0x0F
-                if (lx & 1) == 0 
+                var palette_index: u8 = _buffer[index] & 0x0F
+                if (lx & 1) == 0
                     palette_index = (_buffer[index] >> 4) & 0x0F
-                val color: int = _palette[palette_index]
+                val color: u16 = _palette[palette_index]
                 if color != TRANSPARENT
                     val point: Point = { x, y }
                     context.set_pixel(&point, color)
@@ -335,7 +335,7 @@ class Canvas
             val ly := y - _viewpoint.y - offset.y
             for x in viewpoint.x..viewpoint.x + viewpoint.width
                 val lx    := x - _viewpoint.x - offset.x
-                val color: int = _palette[_buffer[ly * _viewpoint.width + lx]]
+                val color: u16 = _palette[_buffer[ly * _viewpoint.width + lx]]
                 if color != TRANSPARENT
                     val point: Point = { x, y }
                     context.set_pixel(&point, color)
