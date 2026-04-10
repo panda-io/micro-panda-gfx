@@ -1,5 +1,5 @@
 import graphics::PixelFormat
-import rect::Rect
+import geometry::*
 
 // Strip render context passed to every node's render method.
 // offset_x/offset_y are NOT in context — passed separately so containers can
@@ -9,7 +9,7 @@ import rect::Rect
 // RenderContext translates py → strip-local row via win_y offset internally.
 
 class RenderContext
-    var buffer: u8[]
+    var buffer: byte[]
     var format: PixelFormat
     var viewpoint: Rect
 
@@ -18,26 +18,21 @@ class RenderContext
     fun intersect(rect: Rect) bool
         return viewpoint.intersect(rect)
 
-    // ── public draw API (logical coords) ──────────────────────────────────────
-    fun render_node(node: &Node, offset_x: i32, offset_y: i32)
-        match node
-            Canvas(canvas): canvas.render(this, offset_x, offset_y)
-
-    fun set_pixel(x: i32, y: i32, color: i32)
-        if !viewpoint.contains(x, y)
+    fun set_pixel(point: &Point, color: int)
+        if !viewpoint.contains(point)
             return
-        val px: i32 = x - viewpoint.x
-        val py: i32 = y - viewpoint.y
+        val px: int = point.x - viewpoint.x
+        val py: int = point.y - viewpoint.y
         if format == PixelFormat.Mono
             _set_pixel_mono(px, py, color)
         else
             _set_pixel_rgb565(px, py, color)
 
-    fun fill_rect(x: i32, y: i32, width: i32, height: i32, color: i32)
-        var py: i32 = y
-        for py in y..y + height
+    fun fill_rect(rect: &Rect, color: int)
+        var py: int = rect.y
+        for py in rect.y..rect.y + rect.height
             if py >= viewpoint.y && py < viewpoint.y + viewpoint.height
-                for px in x..x + width
+                for px in rect.x..rect.x + rect.width
                     if format == PixelFormat.Mono
                         _set_pixel_mono(px, py - viewpoint.y, color)
                     else
@@ -47,15 +42,15 @@ class RenderContext
     // ── private: format-specific pixel writers (strip-local coords) ───────────
 
     @inline
-    fun _set_pixel_mono(x: i32, y: i32, color: i32)
-        val index:  i32 = y * (viewpoint.width + 7) / 8 + x / 8
+    fun _set_pixel_mono(x: int, y: int, color: int)
+        val index:  int = y * (viewpoint.width + 7) / 8 + x / 8
         if color == 0
-            buffer[index] = buffer[index] & u8(~(0x80 >> (x & 7)))
+            buffer[index] = buffer[index] & byte(~(0x80 >> (x & 7)))
         else
-            buffer[index] = buffer[index] | u8(0x80 >> (x & 7)) 
+            buffer[index] = buffer[index] | byte(0x80 >> (x & 7)) 
 
     @inline
-    fun _set_pixel_rgb565(x: i32, y: i32, color: i32)
-        val index: i32 = (y * viewpoint.width + x) * 2
-        buffer[index]     = u8(color >> 8)
-        buffer[index + 1] = u8(color)
+    fun _set_pixel_rgb565(x: int, y: int, color: int)
+        val index: int = (y * viewpoint.width + x) * 2
+        buffer[index]     = byte(color >> 8)
+        buffer[index + 1] = byte(color)

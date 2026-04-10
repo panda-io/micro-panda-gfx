@@ -1,4 +1,6 @@
-import node.canvas::Canvas
+import render_context::RenderContext
+import geometry::*
 
-enum Node
-    Canvas(canvas: Canvas)
+class Node
+    var handle: &void
+    var renderer: fun(&RenderContext, &Point, &void)  // (context, offset, handle)

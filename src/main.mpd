@@ -1,0 +1,10 @@
+import node.canvas::*
+import graphics::*
+import palette::*
+import point::Point
+import rect::Rect
+import render_context::RenderContext
+import rotation::Rotation
+
+// do nothing, just test that the file is parsed correctly
+fun main()

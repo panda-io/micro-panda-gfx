@@ -1,48 +1,61 @@
 import graphics::IndexFormat
-import rect::Rect
+import geometry::*
 import render_context::RenderContext
+import palette::TRANSPARENT
 import math::*
+import node::Node
+import mcu32::allocator::Allocator
 
 // Canvas — indexed pixel buffer. color parameter is always a palette index.
 // All draw calls write into buffer. No flush, no driver, no rotation.
 
+fun create_canvas(allocator: &Allocator, rect: &Rect
+        background: u16, index_format: IndexFormat, palette: u16[]) &Canvas
+    val canvas: &Canvas = allocator.allocate<Canvas>()
+    canvas._viewpoint.clone(rect)
+    canvas._background = background
+    canvas._index_format = index_format
+    canvas._palette = palette
+    if index_format == IndexFormat.Index1
+        canvas._set_pixel_fn = canvas._set_pixel_index1
+        canvas._render_fn = canvas._render_index1
+        val buffer_size: int = ((rect.width + 7) / 8) * rect.height
+        canvas._buffer = allocator.allocate_array<byte>(buffer_size)
+    if index_format == IndexFormat.Index2
+        canvas._set_pixel_fn = canvas._set_pixel_index2
+        canvas._render_fn = canvas._render_index2
+        val buffer_size: int = ((rect.width + 3) / 4) * rect.height
+        canvas._buffer = allocator.allocate_array<byte>(buffer_size)
+    if index_format == IndexFormat.Index4
+        canvas._set_pixel_fn = canvas._set_pixel_index4
+        canvas._render_fn = canvas._render_index4
+        val buffer_size: int = ((rect.width + 1) / 2) * rect.height
+        canvas._buffer = allocator.allocate_array<byte>(buffer_size)
+    if index_format == IndexFormat.Index8
+        canvas._set_pixel_fn = canvas._set_pixel_index8
+        canvas._render_fn = canvas._render_index8
+        val buffer_size: int = rect.width * rect.height
+        canvas._buffer = allocator.allocate_array<byte>(buffer_size)
+
 class Canvas
-    var _buffer:        u8[]
-    var _viewpoint:        Rect
+    var _node:          Node
+    var _buffer:        byte[]
+    var _viewpoint:     Rect
     var _background:    u16               // TRANSPARENT or a palette RGB565 color
     var _index_format:  IndexFormat
     var _palette:       u16[]
-    var _set_pixel_fn:  fun(i32, i32, i32)
-    var _render_fn:     fun(&RenderContext, i32, i32, &Rect)
+    var _set_pixel_fn:  fun(int, int, int)
+    var _render_fn:     fun(&RenderContext, &Rect, int, int)
 
     // ── public primitives ──────────────────────────────────────────────────────
 
-    // Wire pixel writer for the given index format. Call before any draw calls.
-    fun init(x: i32, y: i32, width: i32, height: i32, background: u16, index_format: IndexFormat, palette: u16[])
-        _viewpoint.x = x
-        _viewpoint.y = y
-        _viewpoint.width = width
-        _viewpoint.height = height
-        _background = background
-        _index_format = index_format
-        _palette = palette
-        if index_format == IndexFormat.Index1
-            _set_pixel_fn = _set_pixel_index1
-            _render_fn = _render_index1
-        if index_format == IndexFormat.Index2
-            _set_pixel_fn = _set_pixel_index2
-            _render_fn = _render_index2
-        if index_format == IndexFormat.Index4
-            _set_pixel_fn = _set_pixel_index4
-            _render_fn = _render_index4
-        if index_format == IndexFormat.Index8
-            _set_pixel_fn = _set_pixel_index8
-            _render_fn = _render_index8
+    fun get_node() &Node
+        return &_node
 
     // Render this canvas into the strip buffer described by ctx.
     // offset_x/offset_y: accumulated offset from parent containers.
     // Clips to the strip window [ctx.win_y, ctx.win_y + ctx.win_h).
-    fun render(context: &RenderContext, offset_x: i32, offset_y: i32)
+    fun render(context: &RenderContext, offset_x: int, offset_y: int)
         val viewpoint: Rect
         viewpoint.x = _viewpoint.x + offset_x
         viewpoint.y = _viewpoint.y + offset_y
@@ -50,37 +63,37 @@ class Canvas
         viewpoint.height = _viewpoint.height
         if !context.intersect(viewpoint)
             return
-        viewpoint.x = max<i32>(viewpoint.x, context.viewpoint.x)
-        viewpoint.y = max<i32>(viewpoint.y, context.viewpoint.y)
-        viewpoint.width = min<i32>(viewpoint.x + viewpoint.width, context.viewpoint.x + context.viewpoint.width) - viewpoint.x
-        viewpoint.height = min<i32>(viewpoint.y + viewpoint.height, context.viewpoint.y + context.viewpoint.height) - viewpoint.y
+        viewpoint.x = max<int>(viewpoint.x, context.viewpoint.x)
+        viewpoint.y = max<int>(viewpoint.y, context.viewpoint.y)
+        viewpoint.width = min<int>(viewpoint.x + viewpoint.width, context.viewpoint.x + context.viewpoint.width) - viewpoint.x
+        viewpoint.height = min<int>(viewpoint.y + viewpoint.height, context.viewpoint.y + context.viewpoint.height) - viewpoint.y
         _render_fn(context, &viewpoint, offset_x, offset_y)
 
     @inline
-    fun draw_pixel(x: i32, y: i32, color: i32)
+    fun draw_pixel(x: int, y: int, color: int)
         _set_pixel_fn(x, y, color)
 
     @inline
-    fun draw_hline(x: i32, y: i32, width: i32, color: i32)
+    fun draw_hline(x: int, y: int, width: int, color: int)
         _fill_rect(x, y, width, 1, color)
 
     @inline
-    fun draw_vline(x: i32, y: i32, height: i32, color: i32)
+    fun draw_vline(x: int, y: int, height: int, color: int)
         _fill_rect(x, y, 1, height, color)
 
-    fun draw_line(x0: i32, y0: i32, x1: i32, y1: i32, color: i32)
-        var dx: i32  = _abs(x1 - x0)
-        var dy: i32  = _abs(y1 - y0)
-        var sx: i32  = _sign(x1 - x0)
-        var sy: i32  = _sign(y1 - y0)
-        var err: i32 = dx - dy
-        var cx: i32  = x0
-        var cy: i32  = y0
+    fun draw_line(x0: int, y0: int, x1: int, y1: int, color: int)
+        var dx: int  = _abs(x1 - x0)
+        var dy: int  = _abs(y1 - y0)
+        var sx: int  = _sign(x1 - x0)
+        var sy: int  = _sign(y1 - y0)
+        var err: int = dx - dy
+        var cx: int  = x0
+        var cy: int  = y0
         while true
             draw_pixel(cx, cy, color)
             if cx == x1 && cy == y1
                 return
-            val e2: i32 = err * 2
+            val e2: int = err * 2
             if e2 > -dy
                 err -= dy
                 cx  += sx
@@ -88,23 +101,23 @@ class Canvas
                 err += dx
                 cy  += sy
 
-    fun draw_rect(x: i32, y: i32, width: i32, height: i32, color: i32)
+    fun draw_rect(x: int, y: int, width: int, height: int, color: int)
         _fill_rect(x,             y,              width, 1,          color)
         _fill_rect(x,             y + height - 1, width, 1,          color)
         _fill_rect(x,             y + 1,          1,     height - 2, color)
         _fill_rect(x + width - 1, y + 1,          1,     height - 2, color)
 
     @inline
-    fun fill_rect(x: i32, y: i32, width: i32, height: i32, color: i32)
+    fun fill_rect(x: int, y: int, width: int, height: int, color: int)
         _fill_rect(x, y, width, height, color)
 
     fun clear()
-        _fill_rect(_window.x, _window.y, _window.width, _window.height, _background)
+        _fill_rect(_viewpoint.x, _viewpoint.y, _viewpoint.width, _viewpoint.height, _background)
 
-    fun draw_circle(cx: i32, cy: i32, r: i32, color: i32)
-        var x: i32 = 0
-        var y: i32 = r
-        var d: i32 = 1 - r
+    fun draw_circle(cx: int, cy: int, r: int, color: int)
+        var x: int = 0
+        var y: int = r
+        var d: int = 1 - r
         _circle_8(cx, cy, x, y, color)
         while x < y
             if d < 0
@@ -115,20 +128,20 @@ class Canvas
             x += 1
             _circle_8(cx, cy, x, y, color)
 
-    fun fill_circle(cx: i32, cy: i32, r: i32, color: i32)
+    fun fill_circle(cx: int, cy: int, r: int, color: int)
         for dy in -r..r + 1
-            val dx: i32 = _sqrt(r * r - dy * dy)
+            val dx: int = _sqrt(r * r - dy * dy)
             _fill_rect(cx - dx, cy + dy, dx * 2 + 1, 1, color)
 
-    fun draw_triangle(x0: i32, y0: i32, x1: i32, y1: i32, x2: i32, y2: i32, color: i32)
+    fun draw_triangle(x0: int, y0: int, x1: int, y1: int, x2: int, y2: int, color: int)
         draw_line(x0, y0, x1, y1, color)
         draw_line(x1, y1, x2, y2, color)
         draw_line(x2, y2, x0, y0, color)
 
-    fun fill_triangle(x0: i32, y0: i32, x1: i32, y1: i32, x2: i32, y2: i32, color: i32)
+    fun fill_triangle(x0: int, y0: int, x1: int, y1: int, x2: int, y2: int, color: int)
         // sort vertices by y: y0 <= y1 <= y2
-        var tx: i32 = 0
-        var ty: i32 = 0
+        var tx: int = 0
+        var ty: int = 0
         if y1 < y0
             tx = x0
             ty = y0
@@ -151,8 +164,8 @@ class Canvas
             x2 = tx
             y2 = ty
         for y in y0..y2 + 1
-            var xa: i32 = 0
-            var xb: i32 = 0
+            var xa: int = 0
+            var xb: int = 0
             if y <= y1 && y1 != y0
                 xa = x0 + (y - y0) * (x1 - x0) / (y1 - y0)
             else
@@ -167,14 +180,14 @@ class Canvas
                 xb = tx
             _fill_rect(xa, y, xb - xa + 1, 1, color)
 
-    fun draw_round_rect(x: i32, y: i32, width: i32, height: i32, r: i32, color: i32)
+    fun draw_round_rect(x: int, y: int, width: int, height: int, r: int, color: int)
         _fill_rect(x + r,         y,              width - 2 * r, 1,              color)
         _fill_rect(x + r,         y + height - 1, width - 2 * r, 1,              color)
         _fill_rect(x,             y + r,          1,             height - 2 * r, color)
         _fill_rect(x + width - 1, y + r,          1,             height - 2 * r, color)
-        var px: i32 = 0
-        var py: i32 = r
-        var d: i32  = 1 - r
+        var px: int = 0
+        var py: int = r
+        var d: int  = 1 - r
         while px <= py
             draw_pixel(x + width - 1 - r + py, y + r - px,              color)
             draw_pixel(x + r - py,             y + r - px,              color)
@@ -191,11 +204,11 @@ class Canvas
                 py -= 1
             px += 1
 
-    fun fill_round_rect(x: i32, y: i32, width: i32, height: i32, r: i32, color: i32)
+    fun fill_round_rect(x: int, y: int, width: int, height: int, r: int, color: int)
         _fill_rect(x + r, y, width - 2 * r, height, color)
-        var px: i32 = 0
-        var py: i32 = r
-        var d: i32  = 1 - r
+        var px: int = 0
+        var py: int = r
+        var d: int  = 1 - r
         while px <= py
             _fill_rect(x + width - 1 - r - py + 1, y + r - px,         py * 2 - 1, 1, color)
             _fill_rect(x + width - 1 - r - py + 1, y + height - 1 - r + px, py * 2 - 1, 1, color)
@@ -211,22 +224,22 @@ class Canvas
     // ── private helpers ────────────────────────────────────────────────────────
 
     // Fill a rectangle — no bounds check, caller ensures valid coords.
-    fun _fill_rect(x: i32, y: i32, with: i32, height: i32, color: i32)
-        if with <= 0 || height <= 0
+    fun _fill_rect(x: int, y: int, width: int, height: int, color: int)
+        if width <= 0 || height <= 0
             return
-        val intersect := x < _window.x + _window.width && x + with > _window.x &&
-                        y < _window.y + _window.height && y + height > _window.y
+        val intersect := (x < _viewpoint.x + _viewpoint.width && x + width > _viewpoint.x &&
+                          y < _viewpoint.y + _viewpoint.height && y + height > _viewpoint.y)
         if !intersect
             return
-        val start_x := max<i32>(x, _window.x)
-        val start_y := max<i32>(y, _window.y)
-        val end_x := min<i32>(x + with, _window.x + _window.width)
-        val end_y := min<i32>(y + height, _window.y + _window.height)
+        val start_x := max<int>(x, _viewpoint.x)
+        val start_y := max<int>(y, _viewpoint.y)
+        val end_x := min<int>(x + width, _viewpoint.x + _viewpoint.width)
+        val end_y := min<int>(y + height, _viewpoint.y + _viewpoint.height)
         for py in start_y..end_y
             for px in start_x..end_x
                 draw_pixel(px, py, color)
 
-    fun _circle_8(cx: i32, cy: i32, x: i32, y: i32, color: i32)
+    fun _circle_8(cx: int, cy: int, x: int, y: int, color: int)
         draw_pixel(cx + x, cy + y, color)
         draw_pixel(cx - x, cy + y, color)
         draw_pixel(cx + x, cy - y, color)
@@ -236,76 +249,101 @@ class Canvas
         draw_pixel(cx + y, cy - x, color)
         draw_pixel(cx - y, cy - x, color)
 
-    // ── per-format pixel writers (no bounds check) ────────────────────────────
+    // ── per-format pixel writers (canvas-absolute coords, bounds-checked) ─────
 
-    fun _set_pixel_index1(x: i32, y: i32, color: i32)
-        if x < _window.x || x >= _window.x + _window.width || y < _window.y || y >= _window.y + _window.height
+    fun _set_pixel_index1(x: int, y: int, color: int)
+        if x < _viewpoint.x || x >= _viewpoint.x + _viewpoint.width || y < _viewpoint.y || y >= _viewpoint.y + _viewpoint.height
             return
-        val index: i32 = y * ((width + 7) / 8) + x / 8
+        val lx := x - _viewpoint.x
+        val ly := y - _viewpoint.y
+        val index: int = ly * ((_viewpoint.width + 7) / 8) + lx / 8
         if (color & 1) != 0
-            _buffer[index] = _buffer[index] | u8(0x80 >> (x & 7))
+            _buffer[index] = _buffer[index] | byte(0x80 >> (lx & 7))
         else
-            _buffer[index] = _buffer[index] & u8(~(0x80 >> (x & 7)))
+            _buffer[index] = _buffer[index] & byte(~(0x80 >> (lx & 7)))
 
-    fun _set_pixel_index2(x: i32, y: i32, color: i32)
-        if x < _window.x || x >= _window.x + _window.width || y < _window.y || y >= _window.y + _window.height
+    fun _set_pixel_index2(x: int, y: int, color: int)
+        if x < _viewpoint.x || x >= _viewpoint.x + _viewpoint.width || y < _viewpoint.y || y >= _viewpoint.y + _viewpoint.height
             return
-        val index: i32 = (y * width + x) / 4
-        val shift: i32 = (3 - (x & 3)) * 2
-        _buffer[index] = (_buffer[index] & u8(~(0x03 << shift))) | u8((color & 0x03) << shift)
+        val lx := x - _viewpoint.x
+        val ly := y - _viewpoint.y
+        val index: int = ly * ((_viewpoint.width + 3) / 4) + lx / 4
+        val shift: int = (3 - (lx & 3)) * 2
+        _buffer[index] = (_buffer[index] & byte(~(0x03 << shift))) | byte((color & 0x03) << shift)
 
-    fun _set_pixel_index4(x: i32, y: i32, color: i32)
-        if x < _window.x || x >= _window.x + _window.width || y < _window.y || y >= _window.y + _window.height
+    fun _set_pixel_index4(x: int, y: int, color: int)
+        if x < _viewpoint.x || x >= _viewpoint.x + _viewpoint.width || y < _viewpoint.y || y >= _viewpoint.y + _viewpoint.height
             return
-        val index: i32 = (y * _window.width + x) / 2
-        if (x & 1) == 0
-            _buffer[index] = (_buffer[index] & u8(0x0F)) | u8(color << 4)
+        val lx := x - _viewpoint.x
+        val ly := y - _viewpoint.y
+        val index: int = ly * ((_viewpoint.width + 1) / 2) + lx / 2
+        if (lx & 1) == 0
+            _buffer[index] = (_buffer[index] & byte(0x0F)) | byte(color << 4)
         else
-            _buffer[index] = (_buffer[index] & u8(0xF0)) | u8(color & 0x0F)
+            _buffer[index] = (_buffer[index] & byte(0xF0)) | byte(color & 0x0F)
 
-    fun _set_pixel_index8(x: i32, y: i32, color: i32)
-        if x < _window.x || x >= _window.x + _window.width || y < _window.y || y >= _window.y + _window.height
+    fun _set_pixel_index8(x: int, y: int, color: int)
+        if x < _viewpoint.x || x >= _viewpoint.x + _viewpoint.width || y < _viewpoint.y || y >= _viewpoint.y + _viewpoint.height
             return
-        _buffer[y * _window.width + x] = u8(color)
+        val lx := x - _viewpoint.x
+        val ly := y - _viewpoint.y
+        _buffer[ly * _viewpoint.width + lx] = byte(color)
 
-    fun _render_index1(context: &RenderContext, viewpoint: &Rect, offset_x: i32, offset_y: i32)
+    // ── per-format strip renderers ────────────────────────────────────────────
+    // viewpoint: clipped screen-space rect to render. lx/ly = canvas-local coords.
+    fun _render_index1(context: &RenderContext, viewpoint: &Rect, offset_x: int, offset_y: int)
         for y in viewpoint.y..viewpoint.y + viewpoint.height
-             val start_x := max<i32>(viewpoint.x, _window.x)
-             val end_x := min<i32>(viewpoint.x + viewpoint.width, _window.x + _window.width)
-             for x in start_x..end_x
-                val index: i32 = y * ((_window.width + 7) / 8) + x / 8
-                val color: i32 = if (_buffer[index] & u8(0x80 >> (x & 7))) != 0 { _palette[1] } else { _palette[0] }
-                context.set_pixel(_window.x + x + offset_x, _window.y + y + offset_y, color)
-
-    fun _render_index2(context: &RenderContext, viewpoint: &Rect, offset_x: i32, offset_y: i32)
-        for y in viewpoint.y..viewpoint.y + viewpoint.height
+            val ly := y - _viewpoint.y - offset_y
             for x in viewpoint.x..viewpoint.x + viewpoint.width
-                val index: i32 = (y * _window.width + x) / 4
-                val shift: i32 = (3 - (x & 3)) * 2
-                val color: i32 = (_buffer[index] >> shift) & 0x03
-                context.set_pixel(_window.x + x + offset_x, _window.y + y + offset_y, _palette[color])
+                val lx  := x - _viewpoint.x - offset_x
+                val index: int = ly * ((_viewpoint.width + 7) / 8) + lx / 8
+                val color: int = if (_buffer[index] & byte(0x80 >> (lx & 7))) != 0 then _palette[1] else _palette[0]
+                if color != TRANSPARENT
+                    val point: Point = { x, y }
+                    context.set_pixel(&point, color)
 
-    fun _render_index4(context: &RenderContext, viewpoint: &Rect, offset_x: i32, offset_y: i32)
+    fun _render_index2(context: &RenderContext, viewpoint: &Rect, offset_x: int, offset_y: int)
         for y in viewpoint.y..viewpoint.y + viewpoint.height
+            val ly := y - _viewpoint.y - offset_y
             for x in viewpoint.x..viewpoint.x + viewpoint.width
-                val index: i32 = (y * _window.width + x) / 2
-                val color: i32 = if (x & 1) == 0 { (_buffer[index] >> 4) & 0x0F } else { _buffer[index] & 0x0F }
-                context.set_pixel(_window.x + x + offset_x, _window.y + y + offset_y, _palette[color])
+                val lx    := x - _viewpoint.x - offset_x
+                val index: int = ly * ((_viewpoint.width + 3) / 4) + lx / 4
+                val shift: int = (3 - (lx & 3)) * 2
+                val color: int = _palette[(_buffer[index] >> shift) & 0x03]
+                if color != TRANSPARENT
+                    val point: Point = { x, y }
+                    context.set_pixel(&point, color)
 
-    fun _render_index8(context: &RenderContext, viewpoint: &Rect, offset_x: i32, offset_y: i32)
+    fun _render_index4(context: &RenderContext, viewpoint: &Rect, offset_x: int, offset_y: int)
         for y in viewpoint.y..viewpoint.y + viewpoint.height
+            val ly := y - _viewpoint.y - offset_y
             for x in viewpoint.x..viewpoint.x + viewpoint.width
-                val color: i32 = _buffer[y * _window.width + x]
-                context.set_pixel(_window.x + x + offset_x, _window.y + y + offset_y, _palette[color])
+                val lx    := x - _viewpoint.x - offset_x
+                val index: int = ly * ((_viewpoint.width + 1) / 2) + lx / 2
+                val palette_index: int = if (lx & 1) == 0 then (_buffer[index] >> 4) & 0x0F else _buffer[index] & 0x0F
+                val color: int = _palette[palette_index]
+                if color != TRANSPARENT
+                    val point: Point = { x, y }
+                    context.set_pixel(&point, color)
+
+    fun _render_index8(context: &RenderContext, viewpoint: &Rect, offset_x: int, offset_y: int)
+        for y in viewpoint.y..viewpoint.y + viewpoint.height
+            val ly := y - _viewpoint.y - offset_y
+            for x in viewpoint.x..viewpoint.x + viewpoint.width
+                val lx    := x - _viewpoint.x - offset_x
+                val color: int = _palette[_buffer[ly * _viewpoint.width + lx]]
+                if color != TRANSPARENT
+                    val point: Point = { x, y }
+                    context.set_pixel(&point, color)
 
     @inline
-    fun _abs(v: i32) i32
+    fun _abs(v: int) int
         if v < 0
             return -v
         return v
 
     @inline
-    fun _sign(v: i32) i32
+    fun _sign(v: int) int
         if v > 0
             return 1
         if v < 0
@@ -313,11 +351,11 @@ class Canvas
         return 0
 
     @inline
-    fun _sqrt(n: i32) i32
+    fun _sqrt(n: int) int
         if n <= 0
             return 0
-        var x: i32 = n
-        var y: i32 = (x + 1) / 2
+        var x: int = n
+        var y: int = (x + 1) / 2
         while y < x
             x = y
             y = (x + n / x) / 2

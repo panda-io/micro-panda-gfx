@@ -1,0 +1,46 @@
+import point::Point
+import math::min
+import math::max
+
+// Point class definition
+class Point
+    var x: int
+    var y: int
+
+    @inline
+    fun clone(point: &Point)
+        x = point.x
+        y = point.y
+
+// Axis-aligned rectangle in logical view coordinates.
+// Used for node bounding boxes, culling, and clipping.
+class Rect
+    var x:      int
+    var y:      int
+    var width:  int
+    var height: int
+
+    @inline
+    fun clone(rect: &Rect)
+        x = rect.x
+        y = rect.y
+        width = rect.width
+        height = rect.height
+
+    @inline
+    fun intersect(rect: &Rect) bool
+        return (rect.x < x + width && rect.x + rect.width > x &&
+                rect.y < y + height && rect.y + rect.height > y)
+
+    @inline
+    fun contains(point: &Point) bool
+        return point.x >= x && point.x < x + width && point.y >= y && point.y < y + height
+
+    @inline
+    fun merge(rect: &Rect)
+        val right  := max<int>(x + width,  rect.x + rect.width)
+        val bottom := max<int>(y + height, rect.y + rect.height)
+        x      = min<int>(x, rect.x)
+        y      = min<int>(y, rect.y)
+        width  = right  - x
+        height = bottom - y
