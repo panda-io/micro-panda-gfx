@@ -153,7 +153,7 @@ void Canvas_draw_triangle(Canvas* this, int32_t x0, int32_t y0, int32_t x1, int3
 void Canvas_fill_triangle(Canvas* this, int32_t x0, int32_t y0, int32_t x1, int32_t y1, int32_t x2, int32_t y2, uint16_t color);
 void Canvas_draw_round_rect(Canvas* this, int32_t x, int32_t y, int32_t width, int32_t height, int32_t r, uint16_t color);
 void Canvas_fill_round_rect(Canvas* this, int32_t x, int32_t y, int32_t width, int32_t height, int32_t r, uint16_t color);
-static Canvas* Canvas__init(Canvas* this, Allocator* allocator, Rect* rect, uint16_t background, IndexFormat index_format, __Slice_uint16_t palette);
+static void Canvas__init(Canvas* this, Allocator* allocator, Rect* rect, uint16_t background, IndexFormat index_format, __Slice_uint16_t palette);
 static inline void Canvas__render(Canvas* this, RenderContext* context, Rect* rect, Point* offset);
 static void Canvas__fill_rect(Canvas* this, int32_t x, int32_t y, int32_t width, int32_t height, uint16_t color);
 static void Canvas__circle_8(Canvas* this, int32_t cx, int32_t cy, int32_t x, int32_t y, uint16_t color);
@@ -219,6 +219,7 @@ static char** __mp_argv = NULL;
 Canvas* node__canvas__create_canvas(Allocator* allocator, Rect* rect, uint16_t background, IndexFormat index_format, __Slice_uint16_t palette) {
   Canvas* canvas = Allocator_allocate_Canvas(allocator);
   Canvas__init(canvas, allocator, rect, background, index_format, palette);
+  return canvas;
 }
 
 void node__canvas__render_canvas(RenderContext* context, Point* offset, void* handle) {
@@ -437,7 +438,7 @@ void Canvas_fill_round_rect(Canvas* this, int32_t x, int32_t y, int32_t width, i
   }
 }
 
-static Canvas* Canvas__init(Canvas* this, Allocator* allocator, Rect* rect, uint16_t background, IndexFormat index_format, __Slice_uint16_t palette) {
+static void Canvas__init(Canvas* this, Allocator* allocator, Rect* rect, uint16_t background, IndexFormat index_format, __Slice_uint16_t palette) {
   Rect_copy((&this->_viewpoint), rect);
   (this->_background = background);
   (this->_index_format = index_format);

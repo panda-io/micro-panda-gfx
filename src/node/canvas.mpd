@@ -13,6 +13,7 @@ fun create_canvas(allocator: &Allocator, rect: &Rect,
         background: u16, index_format: IndexFormat, palette: u16[]) &Canvas
     val canvas: &Canvas = allocator.allocate<Canvas>()
     canvas._init(allocator, rect, background, index_format, palette)
+    return canvas
 
 fun render_canvas(context: &RenderContext, offset: &Point, handle: &void)
     val canvas: &Canvas = &Canvas(handle)
@@ -204,7 +205,7 @@ class Canvas
 
     // ── private helpers ────────────────────────────────────────────────────────
     fun _init(allocator: &Allocator, rect: &Rect,
-        background: u16, index_format: IndexFormat, palette: u16[]) &Canvas
+        background: u16, index_format: IndexFormat, palette: u16[])
         _viewpoint.copy(rect)
         _background = background
         _index_format = index_format
