@@ -42,7 +42,7 @@ class RenderContext
 
     @inline
     fun _set_pixel_mono(x: int, y: int, color: u16)
-        val index:  int = y * (viewpoint.width + 7) / 8 + x / 8
+        val index:  int = y * ((viewpoint.width + 7) / 8) + x / 8
         if color == 0
             buffer[index] = buffer[index] & byte(~(0x80 >> (x & 7)))
         else
