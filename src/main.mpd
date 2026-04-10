@@ -3,7 +3,7 @@ import graphics::*
 import geometry::*
 import node::*
 import palette::*
-import render_context::RenderContext
+import render_context::*
 
 // do nothing, just test that the file is parsed correctly
 fun main()
