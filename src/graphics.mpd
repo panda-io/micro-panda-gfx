@@ -19,12 +19,14 @@ import memory::memory_set
 // ── driver table ──────────────────────────────────────────────────────────────
 
 class GraphicsDriver
-    var width:        int
-    var height:       int
-    var handle:       &void
-    var set_rotation: fun(&void, Rotation)
-    var wait:         fun(&void)             // wait for in-flight DMA flush to complete
-    var flush:        fun(&void, &Rect, byte[])  // start async flush (rect, buffer)
+    var width:          int
+    var height:         int
+    var handle:         &void
+    var set_rotation:   fun(&void, Rotation)
+    var flush:          fun(&void, &Rect, byte[])  // start async flush (rect, buffer)
+    var wait:           fun(&void)                 // wait for in-flight DMA flush to complete
+    var frame_complete: fun(&void)         // notify when frame render is complete
+
 
 // ── Gfx ───────────────────────────────────────────────────────────────────────
 
@@ -133,6 +135,7 @@ class Graphics
             _driver.wait(_driver.handle)
             _front_buffer = 1 - _front_buffer
             _driver.flush(_driver.handle, &_context.viewpoint, _front_strip())
+        _driver.frame_complete(_driver.handle)
 
         if _dirty_render
             _render_window.x = 0
