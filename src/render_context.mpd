@@ -21,35 +21,35 @@ class RenderContext
     fun set_pixel(point: &Point, color: u16)
         if !viewpoint.contains(point)
             return
-        val px: int = point.x - viewpoint.x
-        val py: int = point.y - viewpoint.y
         if format == PixelFormat.Mono
-            _set_pixel_mono(px, py, color)
+            _set_pixel_mono(point, color)
         else
-            _set_pixel_rgb565(px, py, color)
+            _set_pixel_rgb565(point, color)
 
     fun fill_rect(rect: &Rect, color: u16)
-        for py in rect.y..rect.y + rect.height
-            if py >= viewpoint.y && py < viewpoint.y + viewpoint.height
-                for px in rect.x..rect.x + rect.width
+        val point: Point
+        for y in rect.y..rect.y + rect.height
+            if y >= viewpoint.y && y < viewpoint.y + viewpoint.height
+                for x in rect.x..rect.x + rect.width
+                    point.x = x
+                    point.y = y
                     if format == PixelFormat.Mono
-                        _set_pixel_mono(px, py - viewpoint.y, color)
+                        _set_pixel_mono(&point, color)
                     else
-                        _set_pixel_rgb565(px, py - viewpoint.y, color)
-                    px += 1
+                        _set_pixel_rgb565(&point, color)
 
     // ── private: format-specific pixel writers (strip-local coords) ───────────
 
     @inline
-    fun _set_pixel_mono(x: int, y: int, color: u16)
-        val index:  int = y * ((viewpoint.width + 7) / 8) + x / 8
+    fun _set_pixel_mono(point: &Point, color: u16)
+        val index:  int = point.y * ((viewpoint.width + 7) / 8) + point.x / 8
         if color == 0
-            buffer[index] = buffer[index] & byte(~(0x80 >> (x & 7)))
+            buffer[index] = buffer[index] & byte(~(0x80 >> (point.x & 7)))
         else
-            buffer[index] = buffer[index] | byte(0x80 >> (x & 7)) 
+            buffer[index] = buffer[index] | byte(0x80 >> (point.x & 7)) 
 
     @inline
-    fun _set_pixel_rgb565(x: int, y: int, color: u16)
-        val index: int = (y * viewpoint.width + x) * 2
+    fun _set_pixel_rgb565(point: &Point, color: u16)
+        val index: int = (point.y * viewpoint.width + point.x) * 2
         buffer[index]     = byte(color >> 8)
         buffer[index + 1] = byte(color)

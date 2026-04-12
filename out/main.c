@@ -183,8 +183,8 @@ static inline void Rect_merge(Rect* this, Rect* rect);
 static inline bool RenderContext_intersect(RenderContext* this, Rect* rect);
 void RenderContext_set_pixel(RenderContext* this, Point* point, uint16_t color);
 void RenderContext_fill_rect(RenderContext* this, Rect* rect, uint16_t color);
-static inline void RenderContext__set_pixel_mono(RenderContext* this, int32_t x, int32_t y, uint16_t color);
-static inline void RenderContext__set_pixel_rgb565(RenderContext* this, int32_t x, int32_t y, uint16_t color);
+static inline void RenderContext__set_pixel_mono(RenderContext* this, Point* point, uint16_t color);
+static inline void RenderContext__set_pixel_rgb565(RenderContext* this, Point* point, uint16_t color);
 static inline int32_t math__floor_q16(int32_t value);
 static inline int32_t math__ceil_q16(int32_t value);
 static inline int32_t math__round_q16(int32_t value);
@@ -563,67 +563,83 @@ static void Canvas__set_pixel_index8(Canvas* this, int32_t x, int32_t y, uint16_
 }
 
 static void Canvas__render_index1(Canvas* this, RenderContext* context, Rect* viewpoint, Point* offset) {
+  Point canvas_point = {0};
+  Point global_point = {0};
   for (int32_t y = viewpoint->y; y < (viewpoint->y + viewpoint->height); y++) {
-    int32_t ly = ((y - this->_viewpoint.y) - offset->y);
     for (int32_t x = viewpoint->x; x < (viewpoint->x + viewpoint->width); x++) {
-      int32_t lx = ((x - this->_viewpoint.x) - offset->x);
-      int32_t index = ((ly * ((this->_viewpoint.width + 7) / 8)) + (lx / 8));
-      uint16_t color = this->_palette.ptr[0];
-      if (((this->_buffer.ptr[index] & ((uint8_t)((0x80 >> (lx & 7))))) != 0)) {
-        (color = this->_palette.ptr[1]);
-      }
-      if ((color != palette__TRANSPARENT)) {
-        Point point = (Point){x, y};
-        RenderContext_set_pixel(context, (&point), color);
+      (canvas_point.x = (x - offset->x));
+      (canvas_point.y = (y - offset->y));
+      if (Rect_contains((&this->_viewpoint), (&canvas_point))) {
+        (global_point.x = x);
+        (global_point.y = y);
+        int32_t index = ((canvas_point.y * ((this->_viewpoint.width + 7) / 8)) + (canvas_point.x / 8));
+        uint16_t color = this->_palette.ptr[0];
+        if (((this->_buffer.ptr[index] & ((uint8_t)((0x80 >> (canvas_point.x & 7))))) != 0)) {
+          (color = this->_palette.ptr[1]);
+        }
+        if ((color != palette__TRANSPARENT)) {
+          RenderContext_set_pixel(context, (&global_point), color);
+        }
       }
     }
   }
 }
 
 static void Canvas__render_index2(Canvas* this, RenderContext* context, Rect* viewpoint, Point* offset) {
+  Point canvas_point = {0};
+  Point global_point = {0};
   for (int32_t y = viewpoint->y; y < (viewpoint->y + viewpoint->height); y++) {
-    int32_t ly = ((y - this->_viewpoint.y) - offset->y);
     for (int32_t x = viewpoint->x; x < (viewpoint->x + viewpoint->width); x++) {
-      int32_t lx = ((x - this->_viewpoint.x) - offset->x);
-      int32_t index = ((ly * ((this->_viewpoint.width + 3) / 4)) + (lx / 4));
-      int32_t shift = ((3 - (lx & 3)) * 2);
-      uint16_t color = this->_palette.ptr[((((int32_t)(this->_buffer.ptr[index])) >> shift) & 0x03)];
-      if ((color != palette__TRANSPARENT)) {
-        Point point = (Point){x, y};
-        RenderContext_set_pixel(context, (&point), color);
+      (canvas_point.x = (x - offset->x));
+      (canvas_point.y = (y - offset->y));
+      if (Rect_contains((&this->_viewpoint), (&canvas_point))) {
+        (global_point.x = x);
+        (global_point.y = y);
+        int32_t index = ((canvas_point.y * ((this->_viewpoint.width + 3) / 4)) + (canvas_point.x / 4));
+        int32_t shift = ((3 - (canvas_point.x & 3)) * 2);
+        uint16_t color = this->_palette.ptr[((((int32_t)(this->_buffer.ptr[index])) >> shift) & 0x03)];
+        if ((color != palette__TRANSPARENT)) {
+          RenderContext_set_pixel(context, (&global_point), color);
+        }
       }
     }
   }
 }
 
 static void Canvas__render_index4(Canvas* this, RenderContext* context, Rect* viewpoint, Point* offset) {
+  Point canvas_point = {0};
+  Point global_point = {0};
   for (int32_t y = viewpoint->y; y < (viewpoint->y + viewpoint->height); y++) {
-    int32_t ly = ((y - this->_viewpoint.y) - offset->y);
     for (int32_t x = viewpoint->x; x < (viewpoint->x + viewpoint->width); x++) {
-      int32_t lx = ((x - this->_viewpoint.x) - offset->x);
-      int32_t index = ((ly * ((this->_viewpoint.width + 1) / 2)) + (lx / 2));
-      uint8_t palette_index = (this->_buffer.ptr[index] & 0x0F);
-      if (((lx & 1) == 0)) {
-        (palette_index = ((this->_buffer.ptr[index] >> 4) & 0x0F));
-      }
-      uint16_t color = this->_palette.ptr[palette_index];
-      if ((color != palette__TRANSPARENT)) {
-        Point point = (Point){x, y};
-        RenderContext_set_pixel(context, (&point), color);
+      (canvas_point.x = (x - offset->x));
+      (canvas_point.y = (y - offset->y));
+      if (Rect_contains((&this->_viewpoint), (&canvas_point))) {
+        int32_t index = ((canvas_point.y * ((this->_viewpoint.width + 1) / 2)) + (canvas_point.x / 2));
+        uint8_t palette_index = (this->_buffer.ptr[index] & 0x0F);
+        if (((canvas_point.x & 1) == 0)) {
+          (palette_index = ((this->_buffer.ptr[index] >> 4) & 0x0F));
+        }
+        uint16_t color = this->_palette.ptr[palette_index];
+        if ((color != palette__TRANSPARENT)) {
+          RenderContext_set_pixel(context, (&global_point), color);
+        }
       }
     }
   }
 }
 
 static void Canvas__render_index8(Canvas* this, RenderContext* context, Rect* viewpoint, Point* offset) {
+  Point canvas_point = {0};
+  Point global_point = {0};
   for (int32_t y = viewpoint->y; y < (viewpoint->y + viewpoint->height); y++) {
-    int32_t ly = ((y - this->_viewpoint.y) - offset->y);
     for (int32_t x = viewpoint->x; x < (viewpoint->x + viewpoint->width); x++) {
-      int32_t lx = ((x - this->_viewpoint.x) - offset->x);
-      uint16_t color = this->_palette.ptr[this->_buffer.ptr[((ly * this->_viewpoint.width) + lx)]];
-      if ((color != palette__TRANSPARENT)) {
-        Point point = (Point){x, y};
-        RenderContext_set_pixel(context, (&point), color);
+      (canvas_point.x = (x - offset->x));
+      (canvas_point.y = (y - offset->y));
+      if (Rect_contains((&this->_viewpoint), (&canvas_point))) {
+        uint16_t color = this->_palette.ptr[this->_buffer.ptr[((canvas_point.y * this->_viewpoint.width) + canvas_point.x)]];
+        if ((color != palette__TRANSPARENT)) {
+          RenderContext_set_pixel(context, (&global_point), color);
+        }
       }
     }
   }
@@ -816,42 +832,41 @@ void RenderContext_set_pixel(RenderContext* this, Point* point, uint16_t color) 
   if ((!Rect_contains((&this->viewpoint), point))) {
     return;
   }
-  int32_t px = (point->x - this->viewpoint.x);
-  int32_t py = (point->y - this->viewpoint.y);
   if ((this->format == PixelFormat_Mono)) {
-    RenderContext__set_pixel_mono(this, px, py, color);
+    RenderContext__set_pixel_mono(this, point, color);
   } else {
-    RenderContext__set_pixel_rgb565(this, px, py, color);
+    RenderContext__set_pixel_rgb565(this, point, color);
   }
 }
 
 void RenderContext_fill_rect(RenderContext* this, Rect* rect, uint16_t color) {
-  int32_t py = rect->y;
-  for (int32_t py = rect->y; py < (rect->y + rect->height); py++) {
-    if (((py >= this->viewpoint.y) && (py < (this->viewpoint.y + this->viewpoint.height)))) {
-      for (int32_t px = rect->x; px < (rect->x + rect->width); px++) {
+  Point point = {0};
+  for (int32_t y = rect->y; y < (rect->y + rect->height); y++) {
+    if (((y >= this->viewpoint.y) && (y < (this->viewpoint.y + this->viewpoint.height)))) {
+      for (int32_t x = rect->x; x < (rect->x + rect->width); x++) {
+        (point.x = x);
+        (point.y = y);
         if ((this->format == PixelFormat_Mono)) {
-          RenderContext__set_pixel_mono(this, px, (py - this->viewpoint.y), color);
+          RenderContext__set_pixel_mono(this, (&point), color);
         } else {
-          RenderContext__set_pixel_rgb565(this, px, (py - this->viewpoint.y), color);
+          RenderContext__set_pixel_rgb565(this, (&point), color);
         }
-        (px += 1);
       }
     }
   }
 }
 
-static inline void RenderContext__set_pixel_mono(RenderContext* this, int32_t x, int32_t y, uint16_t color) {
-  int32_t index = (((y * (this->viewpoint.width + 7)) / 8) + (x / 8));
+static inline void RenderContext__set_pixel_mono(RenderContext* this, Point* point, uint16_t color) {
+  int32_t index = ((point->y * ((this->viewpoint.width + 7) / 8)) + (point->x / 8));
   if ((color == 0)) {
-    (this->buffer.ptr[index] = (this->buffer.ptr[index] & ((uint8_t)((~(0x80 >> (x & 7)))))));
+    (this->buffer.ptr[index] = (this->buffer.ptr[index] & ((uint8_t)((~(0x80 >> (point->x & 7)))))));
   } else {
-    (this->buffer.ptr[index] = (this->buffer.ptr[index] | ((uint8_t)((0x80 >> (x & 7))))));
+    (this->buffer.ptr[index] = (this->buffer.ptr[index] | ((uint8_t)((0x80 >> (point->x & 7))))));
   }
 }
 
-static inline void RenderContext__set_pixel_rgb565(RenderContext* this, int32_t x, int32_t y, uint16_t color) {
-  int32_t index = (((y * this->viewpoint.width) + x) * 2);
+static inline void RenderContext__set_pixel_rgb565(RenderContext* this, Point* point, uint16_t color) {
+  int32_t index = (((point->y * this->viewpoint.width) + point->x) * 2);
   (this->buffer.ptr[index] = ((uint8_t)((color >> 8))));
   (this->buffer.ptr[(index + 1)] = ((uint8_t)(color)));
 }
