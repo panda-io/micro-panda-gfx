@@ -93,7 +93,7 @@ class Canvas
         _fill_rect(x, y, width, height, color_index)
 
     fun clear()
-        _fill_rect(_node.bound.x, _node.bound.y, _node.bound.width, _node.bound.height, _background)
+        _fill_rect(0, 0, _node.bound.width, _node.bound.height, _background)
 
     fun draw_circle(cx: int, cy: int, r: int, color_index: int)
         var x: int = 0
@@ -234,18 +234,18 @@ class Canvas
             IndexFormat.Index8:
                 _render_index8(context, rect, offset)
 
-    // Fill a rectangle — no bounds check, caller ensures valid coords.
+    // Fill a rectangle — clips to canvas bounds, relative coords.
     fun _fill_rect(x: int, y: int, width: int, height: int, color: int)
         if width <= 0 || height <= 0
             return
-        val intersect := (x < _node.bound.x + _node.bound.width && x + width > _node.bound.x &&
-                          y < _node.bound.y + _node.bound.height && y + height > _node.bound.y)
+        val intersect := (x < _node.bound.width && x + width > 0 &&
+                          y < _node.bound.height && y + height > 0)
         if !intersect
             return
-        val start_x := max<int>(x, _node.bound.x)
-        val start_y := max<int>(y, _node.bound.y)
-        val end_x := min<int>(x + width, _node.bound.x + _node.bound.width)
-        val end_y := min<int>(y + height, _node.bound.y + _node.bound.height)
+        val start_x := max<int>(x, 0)
+        val start_y := max<int>(y, 0)
+        val end_x := min<int>(x + width, _node.bound.width)
+        val end_y := min<int>(y + height, _node.bound.height)
         for py in start_y..end_y
             for px in start_x..end_x
                 draw_pixel(px, py, color)
@@ -263,42 +263,34 @@ class Canvas
     // ── per-format pixel writers (canvas-absolute coords, bounds-checked) ─────
 
     fun _set_pixel_index1(x: int, y: int, color: int)
-        if x < _node.bound.x || x >= _node.bound.x + _node.bound.width || y < _node.bound.y || y >= _node.bound.y + _node.bound.height
+        if x < 0 || y < 0 || x >= _node.bound.width || y >= _node.bound.height
             return
-        val lx := x - _node.bound.x
-        val ly := y - _node.bound.y
-        val index: int = ly * ((_node.bound.width + 7) / 8) + lx / 8
+        val index: int = y * ((_node.bound.width + 7) / 8) + x / 8
         if (color & 1) != 0
-            _buffer[index] = _buffer[index] | byte(0x80 >> (lx & 7))
+            _buffer[index] = _buffer[index] | byte(0x80 >> (x & 7))
         else
-            _buffer[index] = _buffer[index] & byte(~(0x80 >> (lx & 7)))
+            _buffer[index] = _buffer[index] & byte(~(0x80 >> (x & 7)))
 
     fun _set_pixel_index2(x: int, y: int, color: int)
-        if x < _node.bound.x || x >= _node.bound.x + _node.bound.width || y < _node.bound.y || y >= _node.bound.y + _node.bound.height
+        if x < 0 || y < 0 || x >= _node.bound.width || y >= _node.bound.height
             return
-        val lx := x - _node.bound.x
-        val ly := y - _node.bound.y
-        val index: int = ly * ((_node.bound.width + 3) / 4) + lx / 4
-        val shift: int = (3 - (lx & 3)) * 2
+        val index: int = y * ((_node.bound.width + 3) / 4) + x / 4
+        val shift: int = (3 - (x & 3)) * 2
         _buffer[index] = (_buffer[index] & byte(~(0x03 << shift))) | byte((color & 0x03) << shift)
 
     fun _set_pixel_index4(x: int, y: int, color: int)
-        if x < _node.bound.x || x >= _node.bound.x + _node.bound.width || y < _node.bound.y || y >= _node.bound.y + _node.bound.height
+        if x < 0 || y < 0 || x >= _node.bound.width || y >= _node.bound.height
             return
-        val lx := x - _node.bound.x
-        val ly := y - _node.bound.y
-        val index: int = ly * ((_node.bound.width + 1) / 2) + lx / 2
-        if (lx & 1) == 0
+        val index: int = y * ((_node.bound.width + 1) / 2) + x / 2
+        if (x & 1) == 0
             _buffer[index] = (_buffer[index] & byte(0x0F)) | byte(color << 4)
         else
             _buffer[index] = (_buffer[index] & byte(0xF0)) | byte(color & 0x0F)
 
     fun _set_pixel_index8(x: int, y: int, color_index: int)
-        if x < _node.bound.x || x >= _node.bound.x + _node.bound.width || y < _node.bound.y || y >= _node.bound.y + _node.bound.height
+        if x < 0 || y < 0 || x >= _node.bound.width || y >= _node.bound.height
             return
-        val lx := x - _node.bound.x
-        val ly := y - _node.bound.y
-        _buffer[ly * _node.bound.width + lx] = byte(color_index)
+        _buffer[y * _node.bound.width + x] = byte(color_index)
 
     // ── per-format strip renderers ────────────────────────────────────────────
     // viewpoint: clipped screen-space rect to render. lx/ly = canvas-local coords.
