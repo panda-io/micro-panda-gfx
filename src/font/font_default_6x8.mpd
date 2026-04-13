@@ -112,8 +112,8 @@ fun font_default() &Font
     _font.data      = {&_data[0][0], 95 * 6}
     _font.width     = 6
     _font.height    = 8
-    _font.advance_x = 0
-    _font.advance_y = 0
+    _font.advance_x = 6
+    _font.advance_y = 8
     _font.first     = 0x20
     _font.last      = 0x7E
     return &_font

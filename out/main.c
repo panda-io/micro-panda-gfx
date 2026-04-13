@@ -10,6 +10,7 @@ typedef struct Rect Rect;
 typedef struct Node Node;
 typedef struct RenderContext RenderContext;
 typedef struct Allocator Allocator;
+typedef struct Font Font;
 
 typedef enum {
   PixelFormat_Mono = 0,
@@ -106,6 +107,16 @@ struct Allocator {
   int32_t _cursor;
 };
 
+struct Font {
+  __Slice_uint8_t data;
+  int32_t width;
+  int32_t height;
+  int32_t advance_x;
+  int32_t advance_y;
+  uint8_t first;
+  uint8_t last;
+};
+
 struct Node {
   Rect bound;
   void* handle;
@@ -184,8 +195,14 @@ static inline bool Rect_intersect(Rect* this, Rect* rect);
 static inline bool Rect_contains(Rect* this, Point* point);
 static inline void Rect_merge(Rect* this, Rect* rect);
 static inline bool RenderContext_intersect(RenderContext* this, Rect* rect);
-void RenderContext_set_pixel(RenderContext* this, Point* point, uint16_t color);
-void RenderContext_fill_rect(RenderContext* this, Rect* rect, uint16_t color);
+static inline void RenderContext_set_pixel(RenderContext* this, Point* point, uint16_t color);
+static inline void RenderContext_fill_rect(RenderContext* this, Rect* rect, uint16_t color);
+static inline void RenderContext_draw_hline(RenderContext* this, int32_t x, int32_t y, int32_t width, uint16_t color);
+static inline void RenderContext_draw_vline(RenderContext* this, int32_t x, int32_t y, int32_t height, uint16_t color);
+static inline void RenderContext_draw_rect(RenderContext* this, Rect* rect, uint16_t color);
+void RenderContext_fill_round_rect(RenderContext* this, Rect* rect, int32_t radius, uint16_t color);
+void RenderContext_draw_round_rect(RenderContext* this, Rect* rect, int32_t radius, uint16_t color);
+void RenderContext_draw_text(RenderContext* this, int32_t x, int32_t y, __Slice_uint8_t text, Font* font, uint16_t color);
 static inline void RenderContext__set_pixel_mono(RenderContext* this, Point* point, uint16_t color);
 static inline void RenderContext__set_pixel_rgb565(RenderContext* this, Point* point, uint16_t color);
 static inline int32_t math__floor_q16(int32_t value);
@@ -202,6 +219,7 @@ static inline void memory__memory_set(__Slice_uint8_t dst, uint8_t value);
 static inline void memory__memory_copy(__Slice_uint8_t dst, __Slice_uint8_t src, int32_t size);
 static inline void memory__memory_move(__Slice_uint8_t dst, __Slice_uint8_t src, int32_t size);
 static inline void memory__memory_zero(__Slice_uint8_t dst);
+int32_t Font_get_pixel(Font* this, uint8_t c, int32_t px, int32_t py);
 static inline Canvas* Allocator_allocate_Canvas(Allocator* this);
 static inline int32_t math__max_int32_t(int32_t a, int32_t b);
 static inline int32_t math__min_int32_t(int32_t a, int32_t b);
@@ -824,7 +842,7 @@ static inline bool RenderContext_intersect(RenderContext* this, Rect* rect) {
   return Rect_intersect((&this->viewpoint), rect);
 }
 
-void RenderContext_set_pixel(RenderContext* this, Point* point, uint16_t color) {
+static inline void RenderContext_set_pixel(RenderContext* this, Point* point, uint16_t color) {
   if ((!Rect_contains((&this->viewpoint), point))) {
     return;
   }
@@ -835,19 +853,151 @@ void RenderContext_set_pixel(RenderContext* this, Point* point, uint16_t color) 
   }
 }
 
-void RenderContext_fill_rect(RenderContext* this, Rect* rect, uint16_t color) {
+static inline void RenderContext_fill_rect(RenderContext* this, Rect* rect, uint16_t color) {
+  if ((!Rect_intersect((&this->viewpoint), rect))) {
+    return;
+  }
+  int32_t x0 = math__max_int32_t(rect->x, this->viewpoint.x);
+  int32_t x1 = math__min_int32_t((rect->x + rect->width), (this->viewpoint.x + this->viewpoint.width));
+  int32_t y0 = math__max_int32_t(rect->y, this->viewpoint.y);
+  int32_t y1 = math__min_int32_t((rect->y + rect->height), (this->viewpoint.y + this->viewpoint.height));
   Point point = {0};
-  for (int32_t y = rect->y; y < (rect->y + rect->height); y++) {
-    if (((y >= this->viewpoint.y) && (y < (this->viewpoint.y + this->viewpoint.height)))) {
-      for (int32_t x = rect->x; x < (rect->x + rect->width); x++) {
-        (point.x = x);
-        (point.y = y);
-        if ((this->format == PixelFormat_Mono)) {
-          RenderContext__set_pixel_mono(this, (&point), color);
-        } else {
-          RenderContext__set_pixel_rgb565(this, (&point), color);
+  for (int32_t y = y0; y < y1; y++) {
+    for (int32_t x = x0; x < x1; x++) {
+      (point.x = x);
+      (point.y = y);
+      if ((this->format == PixelFormat_Mono)) {
+        RenderContext__set_pixel_mono(this, (&point), color);
+      } else {
+        RenderContext__set_pixel_rgb565(this, (&point), color);
+      }
+    }
+  }
+}
+
+static inline void RenderContext_draw_hline(RenderContext* this, int32_t x, int32_t y, int32_t width, uint16_t color) {
+  Rect rect = {0};
+  (rect.x = x);
+  (rect.y = y);
+  (rect.width = width);
+  (rect.height = 1);
+  RenderContext_fill_rect(this, (&rect), color);
+}
+
+static inline void RenderContext_draw_vline(RenderContext* this, int32_t x, int32_t y, int32_t height, uint16_t color) {
+  Rect rect = {0};
+  (rect.x = x);
+  (rect.y = y);
+  (rect.width = 1);
+  (rect.height = height);
+  RenderContext_fill_rect(this, (&rect), color);
+}
+
+static inline void RenderContext_draw_rect(RenderContext* this, Rect* rect, uint16_t color) {
+  RenderContext_draw_hline(this, rect->x, rect->y, rect->width, color);
+  RenderContext_draw_hline(this, rect->x, ((rect->y + rect->height) - 1), rect->width, color);
+  RenderContext_draw_vline(this, rect->x, (rect->y + 1), (rect->height - 2), color);
+  RenderContext_draw_vline(this, ((rect->x + rect->width) - 1), (rect->y + 1), (rect->height - 2), color);
+}
+
+void RenderContext_fill_round_rect(RenderContext* this, Rect* rect, int32_t radius, uint16_t color) {
+  if ((!Rect_intersect((&this->viewpoint), rect))) {
+    return;
+  }
+  int32_t r = radius;
+  Rect center = {0};
+  (center.x = (rect->x + r));
+  (center.y = rect->y);
+  (center.width = (rect->width - (2 * r)));
+  (center.height = rect->height);
+  RenderContext_fill_rect(this, (&center), color);
+  int32_t px = 0;
+  int32_t py = r;
+  int32_t d = (1 - r);
+  while ((px <= py)) {
+    RenderContext_draw_hline(this, ((rect->x + r) - py), ((rect->y + r) - px), ((py * 2) - 1), color);
+    RenderContext_draw_hline(this, ((rect->x + r) - py), ((((rect->y + rect->height) - r) + px) - 1), ((py * 2) - 1), color);
+    RenderContext_draw_hline(this, ((rect->x + r) - px), ((rect->y + r) - py), ((px * 2) - 1), color);
+    RenderContext_draw_hline(this, ((rect->x + r) - px), ((((rect->y + rect->height) - r) + py) - 1), ((px * 2) - 1), color);
+    if ((d < 0)) {
+      (d += ((2 * px) + 3));
+    } else {
+      (d += ((2 * (px - py)) + 5));
+      (py -= 1);
+    }
+    (px += 1);
+  }
+}
+
+void RenderContext_draw_round_rect(RenderContext* this, Rect* rect, int32_t radius, uint16_t color) {
+  if ((!Rect_intersect((&this->viewpoint), rect))) {
+    return;
+  }
+  int32_t r = radius;
+  RenderContext_draw_hline(this, (rect->x + r), rect->y, (rect->width - (2 * r)), color);
+  RenderContext_draw_hline(this, (rect->x + r), ((rect->y + rect->height) - 1), (rect->width - (2 * r)), color);
+  RenderContext_draw_vline(this, rect->x, (rect->y + r), (rect->height - (2 * r)), color);
+  RenderContext_draw_vline(this, ((rect->x + rect->width) - 1), (rect->y + r), (rect->height - (2 * r)), color);
+  Point point = {0};
+  int32_t px = 0;
+  int32_t py = r;
+  int32_t d = (1 - r);
+  while ((px <= py)) {
+    (point.x = ((((rect->x + rect->width) - 1) - r) + py));
+    (point.y = ((rect->y + r) - px));
+    RenderContext_set_pixel(this, (&point), color);
+    (point.x = ((rect->x + r) - py));
+    (point.y = ((rect->y + r) - px));
+    RenderContext_set_pixel(this, (&point), color);
+    (point.x = ((((rect->x + rect->width) - 1) - r) + py));
+    (point.y = ((((rect->y + rect->height) - 1) - r) + px));
+    RenderContext_set_pixel(this, (&point), color);
+    (point.x = ((rect->x + r) - py));
+    (point.y = ((((rect->y + rect->height) - 1) - r) + px));
+    RenderContext_set_pixel(this, (&point), color);
+    (point.x = ((((rect->x + rect->width) - 1) - r) + px));
+    (point.y = ((rect->y + r) - py));
+    RenderContext_set_pixel(this, (&point), color);
+    (point.x = ((rect->x + r) - px));
+    (point.y = ((rect->y + r) - py));
+    RenderContext_set_pixel(this, (&point), color);
+    (point.x = ((((rect->x + rect->width) - 1) - r) + px));
+    (point.y = ((((rect->y + rect->height) - 1) - r) + py));
+    RenderContext_set_pixel(this, (&point), color);
+    (point.x = ((rect->x + r) - px));
+    (point.y = ((((rect->y + rect->height) - 1) - r) + py));
+    RenderContext_set_pixel(this, (&point), color);
+    if ((d < 0)) {
+      (d += ((2 * px) + 3));
+    } else {
+      (d += ((2 * (px - py)) + 5));
+      (py -= 1);
+    }
+    (px += 1);
+  }
+}
+
+void RenderContext_draw_text(RenderContext* this, int32_t x, int32_t y, __Slice_uint8_t text, Font* font, uint16_t color) {
+  Rect glyph = {0};
+  (glyph.y = y);
+  (glyph.width = font->width);
+  (glyph.height = font->height);
+  Point point = {0};
+  int32_t cursor_x = x;
+  for (int32_t i = 0; i < text.size; i++) {
+    (glyph.x = cursor_x);
+    uint8_t c = text.ptr[i];
+    if ((((c >= font->first) && (c <= font->last)) && Rect_intersect((&this->viewpoint), (&glyph)))) {
+      for (int32_t py = 0; py < font->height; py++) {
+        (point.y = (y + py));
+        for (int32_t px = 0; px < font->width; px++) {
+          if ((Font_get_pixel(font, c, px, py) != 0)) {
+            (point.x = (cursor_x + px));
+            RenderContext_set_pixel(this, (&point), color);
+          }
         }
       }
+      (cursor_x += font->advance_x);
     }
   }
 }
@@ -936,6 +1086,17 @@ static inline void memory__memory_move(__Slice_uint8_t dst, __Slice_uint8_t src,
 
 static inline void memory__memory_zero(__Slice_uint8_t dst) {
   memory__memory_set(dst, ((uint8_t)(0)));
+}
+
+int32_t Font_get_pixel(Font* this, uint8_t c, int32_t px, int32_t py) {
+  if (((c < this->first) || (c > this->last))) {
+    return 0;
+  }
+  if (((((px < 0) || (px >= this->width)) || (py < 0)) || (py >= this->height))) {
+    return 0;
+  }
+  int32_t offset = ((((int32_t)((c - this->first))) * this->width) + px);
+  return ((int32_t)(((this->data.ptr[offset] >> ((uint8_t)(py))) & ((uint8_t)(1)))));
 }
 
 static inline Canvas* Allocator_allocate_Canvas(Allocator* this) {

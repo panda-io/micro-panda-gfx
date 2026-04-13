@@ -1,5 +1,8 @@
 import graphics::PixelFormat
 import geometry::*
+import math::min
+import math::max
+import font.font::Font
 
 // Strip render context passed to every node's render method.
 // offset_x/offset_y are NOT in context — passed separately so containers can
@@ -18,6 +21,7 @@ class RenderContext
     fun intersect(rect: &Rect) bool
         return viewpoint.intersect(rect)
 
+    @inline
     fun set_pixel(point: &Point, color: u16)
         if !viewpoint.contains(point)
             return
@@ -26,17 +30,144 @@ class RenderContext
         else
             _set_pixel_rgb565(point, color)
 
+    @inline
     fun fill_rect(rect: &Rect, color: u16)
+        if !viewpoint.intersect(rect)
+            return
+        val x0: int = max<int>(rect.x, viewpoint.x)
+        val x1: int = min<int>(rect.x + rect.width, viewpoint.x + viewpoint.width)
+        val y0: int = max<int>(rect.y, viewpoint.y)
+        val y1: int = min<int>(rect.y + rect.height, viewpoint.y + viewpoint.height)
         val point: Point
-        for y in rect.y..rect.y + rect.height
-            if y >= viewpoint.y && y < viewpoint.y + viewpoint.height
-                for x in rect.x..rect.x + rect.width
-                    point.x = x
-                    point.y = y
-                    if format == PixelFormat.Mono
-                        _set_pixel_mono(&point, color)
-                    else
-                        _set_pixel_rgb565(&point, color)
+        for y in y0..y1
+            for x in x0..x1
+                point.x = x
+                point.y = y
+                if format == PixelFormat.Mono
+                    _set_pixel_mono(&point, color)
+                else
+                    _set_pixel_rgb565(&point, color)
+
+    @inline
+    fun draw_hline(x: int, y: int, width: int, color: u16)
+        val rect: Rect
+        rect.x = x
+        rect.y = y
+        rect.width = width
+        rect.height = 1
+        fill_rect(&rect, color)
+
+    @inline
+    fun draw_vline(x: int, y: int, height: int, color: u16)
+        val rect: Rect
+        rect.x = x
+        rect.y = y
+        rect.width = 1
+        rect.height = height
+        fill_rect(&rect, color)
+
+    @inline
+    fun draw_rect(rect: &Rect, color: u16)
+        draw_hline(rect.x,                  rect.y,                   rect.width,      color)
+        draw_hline(rect.x,                  rect.y + rect.height - 1, rect.width,      color)
+        draw_vline(rect.x,                  rect.y + 1,               rect.height - 2, color)
+        draw_vline(rect.x + rect.width - 1, rect.y + 1,               rect.height - 2, color)
+
+    fun fill_round_rect(rect: &Rect, radius: int, color: u16)
+        if !viewpoint.intersect(rect)
+            return
+        val r: int = radius
+        val center: Rect
+        center.x      = rect.x + r
+        center.y      = rect.y
+        center.width  = rect.width - 2 * r
+        center.height = rect.height
+        fill_rect(&center, color)
+        var px: int = 0
+        var py: int = r
+        var d:  int = 1 - r
+        while px <= py
+            draw_hline(rect.x + r - py, rect.y + r - px,                    py * 2 - 1, color)
+            draw_hline(rect.x + r - py, rect.y + rect.height - r + px - 1,  py * 2 - 1, color)
+            draw_hline(rect.x + r - px, rect.y + r - py,                    px * 2 - 1, color)
+            draw_hline(rect.x + r - px, rect.y + rect.height - r + py - 1,  px * 2 - 1, color)
+            if d < 0
+                d += 2 * px + 3
+            else
+                d += 2 * (px - py) + 5
+                py -= 1
+            px += 1
+
+    fun draw_round_rect(rect: &Rect, radius: int, color: u16)
+        if !viewpoint.intersect(rect)
+            return
+        val r: int = radius
+        draw_hline(rect.x + r,                  rect.y,                   rect.width - 2 * r,  color)
+        draw_hline(rect.x + r,                  rect.y + rect.height - 1, rect.width - 2 * r,  color)
+        draw_vline(rect.x,                       rect.y + r,               rect.height - 2 * r, color)
+        draw_vline(rect.x + rect.width - 1,      rect.y + r,               rect.height - 2 * r, color)
+        val point: Point
+        var px: int = 0
+        var py: int = r
+        var d:  int = 1 - r
+        while px <= py
+            point.x = rect.x + rect.width - 1 - r + py
+            point.y = rect.y + r - px                      
+            set_pixel(&point, color)
+
+            point.x = rect.x + r - py                   
+            point.y = rect.y + r - px                      
+            set_pixel(&point, color)
+
+            point.x = rect.x + rect.width - 1 - r + py
+            point.y = rect.y + rect.height - 1 - r + px
+            set_pixel(&point, color)
+
+            point.x = rect.x + r - py
+            point.y = rect.y + rect.height - 1 - r + px
+            set_pixel(&point, color)
+
+            point.x = rect.x + rect.width - 1 - r + px
+            point.y = rect.y + r - py
+            set_pixel(&point, color)
+
+            point.x = rect.x + r - px
+            point.y = rect.y + r - py
+            set_pixel(&point, color)
+
+            point.x = rect.x + rect.width - 1 - r + px
+            point.y = rect.y + rect.height - 1 - r + py
+            set_pixel(&point, color)
+
+            point.x = rect.x + r - px
+            point.y = rect.y + rect.height - 1 - r + py
+            set_pixel(&point, color)
+
+            if d < 0
+                d += 2 * px + 3
+            else
+                d += 2 * (px - py) + 5
+                py -= 1
+            px += 1
+
+    fun draw_text(x: int, y: int, text: byte[], font: &Font, color: u16)
+        val glyph: Rect
+        glyph.y      = y
+        glyph.width  = font.width
+        glyph.height = font.height
+        val point: Point
+        var cursor_x: int = x
+        for i in 0..text.size()
+            glyph.x = cursor_x
+            val c: byte = text[i]
+            if c >= font.first && c <= font.last && viewpoint.intersect(&glyph)
+                for py in 0..font.height
+                    point.y = y + py
+                    for px in 0..font.width
+                        if font.get_pixel(c, px, py) != 0
+                            point.x = cursor_x + px
+                            set_pixel(&point, color)
+                cursor_x += font.advance_x
 
     // ── private: format-specific pixel writers (strip-local coords) ───────────
 
