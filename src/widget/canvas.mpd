@@ -292,67 +292,72 @@ class Canvas
         _buffer[y * _node.bound.width + x] = byte(color_index)
 
     // ── per-format strip renderers ────────────────────────────────────────────
-    // viewpoint: clipped screen-space rect to render. lx/ly = canvas-local coords.
+    // viewpoint: clipped screen-space rect to render (intersection already computed by render_canvas).
+    // lx/ly = 0-based canvas-local coords.
     fun _render_index1(context: &RenderContext, viewpoint: &Rect, offset: &Point)
-        val canvas_point: Point
-        val global_point: Point
+        val origin_x = offset.x + _node.bound.x
+        val origin_y = offset.y + _node.bound.y
+        val point: Point
         for y in viewpoint.y..viewpoint.y + viewpoint.height
+            val ly = y - origin_y
+            point.y = y
             for x in viewpoint.x..viewpoint.x + viewpoint.width
-                canvas_point.x = x - offset.x
-                canvas_point.y = y - offset.y
-                if _node.bound.contains(&canvas_point)
-                    global_point.x = x
-                    global_point.y = y
-                    val index: int = canvas_point.y * ((_node.bound.width + 7) / 8) + canvas_point.x / 8
-                    var color: u16 = _palette[0]
-                    if (_buffer[index] & byte(0x80 >> (canvas_point.x & 7))) != 0
-                        color = _palette[1]
-                    if color != TRANSPARENT
-                        context.set_pixel(&global_point, color)
+                val lx = x - origin_x
+                val index: int = ly * ((_node.bound.width + 7) / 8) + lx / 8
+                var color: u16 = _palette[0]
+                if (_buffer[index] & byte(0x80 >> (lx & 7))) != 0
+                    color = _palette[1]
+                if color != TRANSPARENT
+                    point.x = x
+                    context.set_pixel(&point, color)
 
     fun _render_index2(context: &RenderContext, viewpoint: &Rect, offset: &Point)
-        val canvas_point: Point
-        val global_point: Point
+        val origin_x = offset.x + _node.bound.x
+        val origin_y = offset.y + _node.bound.y
+        val point: Point
         for y in viewpoint.y..viewpoint.y + viewpoint.height
+            val ly = y - origin_y
+            point.y = y
             for x in viewpoint.x..viewpoint.x + viewpoint.width
-                canvas_point.x = x - offset.x
-                canvas_point.y = y - offset.y
-                if _node.bound.contains(&canvas_point)
-                    global_point.x = x
-                    global_point.y = y
-                    val index: int = canvas_point.y * ((_node.bound.width + 3) / 4) + canvas_point.x / 4
-                    val shift: int = (3 - (canvas_point.x & 3)) * 2
-                    val color: u16 = _palette[(int(_buffer[index]) >> shift) & 0x03]
-                    if color != TRANSPARENT
-                        context.set_pixel(&global_point, color)
+                val lx = x - origin_x
+                val index: int = ly * ((_node.bound.width + 3) / 4) + lx / 4
+                val shift: int = (3 - (lx & 3)) * 2
+                val color: u16 = _palette[(int(_buffer[index]) >> shift) & 0x03]
+                if color != TRANSPARENT
+                    point.x = x
+                    context.set_pixel(&point, color)
 
     fun _render_index4(context: &RenderContext, viewpoint: &Rect, offset: &Point)
-        val canvas_point: Point
-        val global_point: Point
+        val origin_x = offset.x + _node.bound.x
+        val origin_y = offset.y + _node.bound.y
+        val point: Point
         for y in viewpoint.y..viewpoint.y + viewpoint.height
+            val ly = y - origin_y
+            point.y = y
             for x in viewpoint.x..viewpoint.x + viewpoint.width
-                canvas_point.x = x - offset.x
-                canvas_point.y = y - offset.y
-                if _node.bound.contains(&canvas_point)
-                    val index: int = canvas_point.y * ((_node.bound.width + 1) / 2) + canvas_point.x / 2
-                    var palette_index: u8 = _buffer[index] & 0x0F
-                    if (canvas_point.x & 1) == 0
-                        palette_index = (_buffer[index] >> 4) & 0x0F
-                    val color: u16 = _palette[palette_index]
-                    if color != TRANSPARENT
-                        context.set_pixel(&global_point, color)
+                val lx = x - origin_x
+                val index: int = ly * ((_node.bound.width + 1) / 2) + lx / 2
+                var palette_index: u8 = _buffer[index] & 0x0F
+                if (lx & 1) == 0
+                    palette_index = (_buffer[index] >> 4) & 0x0F
+                val color: u16 = _palette[palette_index]
+                if color != TRANSPARENT
+                    point.x = x
+                    context.set_pixel(&point, color)
 
     fun _render_index8(context: &RenderContext, viewpoint: &Rect, offset: &Point)
-        val canvas_point: Point
-        val global_point: Point
+        val origin_x = offset.x + _node.bound.x
+        val origin_y = offset.y + _node.bound.y
+        val point: Point
         for y in viewpoint.y..viewpoint.y + viewpoint.height
+            val ly = y - origin_y
+            point.y = y
             for x in viewpoint.x..viewpoint.x + viewpoint.width
-                canvas_point.x = x - offset.x
-                canvas_point.y = y - offset.y
-                if _node.bound.contains(&canvas_point)
-                    val color: u16 = _palette[_buffer[canvas_point.y * _node.bound.width + canvas_point.x]]
-                    if color != TRANSPARENT
-                        context.set_pixel(&global_point, color)
+                val lx = x - origin_x
+                val color: u16 = _palette[_buffer[ly * _node.bound.width + lx]]
+                if color != TRANSPARENT
+                    point.x = x
+                    context.set_pixel(&point, color)
 
     @inline
     fun _abs(v: int) int
