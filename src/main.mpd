@@ -1,4 +1,4 @@
-import node.canvas::*
+import widget.canvas::*
 import graphics::*
 import geometry::*
 import node::*

@@ -2,5 +2,6 @@ import render_context::RenderContext
 import geometry::*
 
 class Node
-    var handle: &void
+    var bound:    Rect
+    var handle:   &void
     var renderer: fun(&RenderContext, &Point, &void)  // (context, offset, handle)

@@ -140,8 +140,8 @@ struct Graphics {
 };
 
 void main__main(void);
-Canvas* node__canvas__create_canvas(Allocator* allocator, Rect* rect, int32_t background, IndexFormat index_format, __Slice_uint16_t palette);
-void node__canvas__render_canvas(RenderContext* context, Point* offset, void* handle);
+Canvas* widget__canvas__create_canvas(Allocator* allocator, Rect* rect, int32_t background, IndexFormat index_format, __Slice_uint16_t palette);
+void widget__canvas__render_canvas(RenderContext* context, Point* offset, void* handle);
 Node* Canvas_get_node(Canvas* this);
 static inline void Canvas_draw_pixel(Canvas* this, int32_t x, int32_t y, int32_t color_index);
 static inline void Canvas_draw_hline(Canvas* this, int32_t x, int32_t y, int32_t width, int32_t color_index);
@@ -219,13 +219,13 @@ const float math__E = 2.71828182845904523536f;
 static int32_t __mp_argc = 0;
 static char** __mp_argv = NULL;
 
-Canvas* node__canvas__create_canvas(Allocator* allocator, Rect* rect, int32_t background, IndexFormat index_format, __Slice_uint16_t palette) {
+Canvas* widget__canvas__create_canvas(Allocator* allocator, Rect* rect, int32_t background, IndexFormat index_format, __Slice_uint16_t palette) {
   Canvas* canvas = Allocator_allocate_Canvas(allocator);
   Canvas__init(canvas, allocator, rect, background, index_format, palette);
   return canvas;
 }
 
-void node__canvas__render_canvas(RenderContext* context, Point* offset, void* handle) {
+void widget__canvas__render_canvas(RenderContext* context, Point* offset, void* handle) {
   Canvas* canvas = ((Canvas*)(handle));
   Rect viewpoint = {0};
   (viewpoint.x = (canvas->_viewpoint.x + offset->x));
@@ -463,7 +463,7 @@ static void Canvas__init(Canvas* this, Allocator* allocator, Rect* rect, int32_t
     (this->_buffer = Allocator_allocate_array_uint8_t(allocator, buffer_size));
   }
   (this->_node.handle = ((void*)(this)));
-  (this->_node.renderer = node__canvas__render_canvas);
+  (this->_node.renderer = widget__canvas__render_canvas);
 }
 
 static inline void Canvas__render(Canvas* this, RenderContext* context, Rect* rect, Point* offset) {
