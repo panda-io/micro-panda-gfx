@@ -21,11 +21,13 @@ import memory::memory_set
 class GraphicsDriver
     var width:          int
     var height:         int
+    var strip0:         byte[]
+    var strip1:         byte[]                     // empty = single-buffer mode
     var handle:         &void
     var set_rotation:   fun(&void, Rotation)
     var flush:          fun(&void, &Rect, byte[])  // start async flush (rect, buffer)
     var wait:           fun(&void)                 // wait for in-flight DMA flush to complete
-    var frame_complete: fun(&void)         // notify when frame render is complete
+    var frame_complete: fun(&void)                 // notify when frame render is complete
 
 
 // ── Gfx ───────────────────────────────────────────────────────────────────────
@@ -67,17 +69,16 @@ class Graphics
     // Init with one or two strip buffers. Pass empty buffer1 for single-buffer mode.
     // Rotation is fixed for the lifetime of this Gfx instance.
     fun init(driver: &GraphicsDriver, 
-            buffer0: byte[], buffer1: byte[], 
             pixel_format: PixelFormat, background: u16, 
             rotation: Rotation, dirty_render: bool)
         _driver = driver
-        _strip0 = buffer0
-        _strip1 = buffer1
+        _strip0 = driver.strip0
+        _strip1 = driver.strip1
         _context.format = pixel_format
         _background = background
         _dirty_render = dirty_render
 
-        if buffer1.size() == 0
+        if driver.strip1.size() == 0
             _single_buffer = true
         _render_window.x = 0
         _render_window.y = 0
