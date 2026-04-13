@@ -68,9 +68,7 @@ class Graphics
 
     // Init with one or two strip buffers. Pass empty buffer1 for single-buffer mode.
     // Rotation is fixed for the lifetime of this Gfx instance.
-    fun init(driver: &GraphicsDriver, 
-            pixel_format: PixelFormat, background: u16, 
-            rotation: Rotation, dirty_render: bool)
+    fun init(driver: &GraphicsDriver, pixel_format: PixelFormat, background: u16, rotation: Rotation, dirty_render: bool)
         _driver = driver
         _strip0 = driver.strip0
         _strip1 = driver.strip1
