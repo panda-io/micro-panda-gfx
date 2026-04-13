@@ -70,8 +70,8 @@ typedef struct { uint8_t* ptr; int32_t size; } __Slice_uint8_t;
 typedef struct { uint16_t* ptr; int32_t size; } __Slice_uint16_t;
 
 typedef void (*__Fn_void_void_p_Rotation)(void*, Rotation);
-typedef void (*__Fn_void_void_p)(void*);
 typedef void (*__Fn_void_void_p_Rect_p_Slice_uint8_t)(void*, Rect*, __Slice_uint8_t);
+typedef void (*__Fn_void_void_p)(void*);
 typedef void (*__Fn_void_RenderContext_p_Point_p_void_p)(RenderContext*, Point*, void*);
 
 #include <math.h>
@@ -80,10 +80,13 @@ typedef void (*__Fn_void_RenderContext_p_Point_p_void_p)(RenderContext*, Point*,
 struct GraphicsDriver {
   int32_t width;
   int32_t height;
+  __Slice_uint8_t strip0;
+  __Slice_uint8_t strip1;
   void* handle;
   __Fn_void_void_p_Rotation set_rotation;
-  __Fn_void_void_p wait;
   __Fn_void_void_p_Rect_p_Slice_uint8_t flush;
+  __Fn_void_void_p wait;
+  __Fn_void_void_p frame_complete;
 };
 
 struct Point {
@@ -118,7 +121,7 @@ struct Canvas {
   Node _node;
   __Slice_uint8_t _buffer;
   Rect _viewpoint;
-  uint16_t _background;
+  int32_t _background;
   IndexFormat _index_format;
   __Slice_uint16_t _palette;
 };
@@ -137,30 +140,30 @@ struct Graphics {
 };
 
 void main__main(void);
-Canvas* node__canvas__create_canvas(Allocator* allocator, Rect* rect, uint16_t background, IndexFormat index_format, __Slice_uint16_t palette);
+Canvas* node__canvas__create_canvas(Allocator* allocator, Rect* rect, int32_t background, IndexFormat index_format, __Slice_uint16_t palette);
 void node__canvas__render_canvas(RenderContext* context, Point* offset, void* handle);
 Node* Canvas_get_node(Canvas* this);
-static inline void Canvas_draw_pixel(Canvas* this, int32_t x, int32_t y, uint16_t color);
-static inline void Canvas_draw_hline(Canvas* this, int32_t x, int32_t y, int32_t width, uint16_t color);
-static inline void Canvas_draw_vline(Canvas* this, int32_t x, int32_t y, int32_t height, uint16_t color);
-void Canvas_draw_line(Canvas* this, int32_t x0, int32_t y0, int32_t x1, int32_t y1, uint16_t color);
-void Canvas_draw_rect(Canvas* this, int32_t x, int32_t y, int32_t width, int32_t height, uint16_t color);
-static inline void Canvas_fill_rect(Canvas* this, int32_t x, int32_t y, int32_t width, int32_t height, uint16_t color);
+static inline void Canvas_draw_pixel(Canvas* this, int32_t x, int32_t y, int32_t color_index);
+static inline void Canvas_draw_hline(Canvas* this, int32_t x, int32_t y, int32_t width, int32_t color_index);
+static inline void Canvas_draw_vline(Canvas* this, int32_t x, int32_t y, int32_t height, int32_t color_index);
+void Canvas_draw_line(Canvas* this, int32_t x0, int32_t y0, int32_t x1, int32_t y1, int32_t color_index);
+void Canvas_draw_rect(Canvas* this, int32_t x, int32_t y, int32_t width, int32_t height, int32_t color_index);
+static inline void Canvas_fill_rect(Canvas* this, int32_t x, int32_t y, int32_t width, int32_t height, int32_t color_index);
 void Canvas_clear(Canvas* this);
-void Canvas_draw_circle(Canvas* this, int32_t cx, int32_t cy, int32_t r, uint16_t color);
-void Canvas_fill_circle(Canvas* this, int32_t cx, int32_t cy, int32_t r, uint16_t color);
-void Canvas_draw_triangle(Canvas* this, int32_t x0, int32_t y0, int32_t x1, int32_t y1, int32_t x2, int32_t y2, uint16_t color);
-void Canvas_fill_triangle(Canvas* this, int32_t x0, int32_t y0, int32_t x1, int32_t y1, int32_t x2, int32_t y2, uint16_t color);
-void Canvas_draw_round_rect(Canvas* this, int32_t x, int32_t y, int32_t width, int32_t height, int32_t r, uint16_t color);
-void Canvas_fill_round_rect(Canvas* this, int32_t x, int32_t y, int32_t width, int32_t height, int32_t r, uint16_t color);
-static void Canvas__init(Canvas* this, Allocator* allocator, Rect* rect, uint16_t background, IndexFormat index_format, __Slice_uint16_t palette);
+void Canvas_draw_circle(Canvas* this, int32_t cx, int32_t cy, int32_t r, int32_t color_index);
+void Canvas_fill_circle(Canvas* this, int32_t cx, int32_t cy, int32_t r, int32_t color_index);
+void Canvas_draw_triangle(Canvas* this, int32_t x0, int32_t y0, int32_t x1, int32_t y1, int32_t x2, int32_t y2, int32_t color_index);
+void Canvas_fill_triangle(Canvas* this, int32_t x0, int32_t y0, int32_t x1, int32_t y1, int32_t x2, int32_t y2, int32_t color_index);
+void Canvas_draw_round_rect(Canvas* this, int32_t x, int32_t y, int32_t width, int32_t height, int32_t r, int32_t color_index);
+void Canvas_fill_round_rect(Canvas* this, int32_t x, int32_t y, int32_t width, int32_t height, int32_t r, int32_t color);
+static void Canvas__init(Canvas* this, Allocator* allocator, Rect* rect, int32_t background, IndexFormat index_format, __Slice_uint16_t palette);
 static inline void Canvas__render(Canvas* this, RenderContext* context, Rect* rect, Point* offset);
-static void Canvas__fill_rect(Canvas* this, int32_t x, int32_t y, int32_t width, int32_t height, uint16_t color);
-static void Canvas__circle_8(Canvas* this, int32_t cx, int32_t cy, int32_t x, int32_t y, uint16_t color);
-static void Canvas__set_pixel_index1(Canvas* this, int32_t x, int32_t y, uint16_t color);
-static void Canvas__set_pixel_index2(Canvas* this, int32_t x, int32_t y, uint16_t color);
-static void Canvas__set_pixel_index4(Canvas* this, int32_t x, int32_t y, uint16_t color);
-static void Canvas__set_pixel_index8(Canvas* this, int32_t x, int32_t y, uint16_t color);
+static void Canvas__fill_rect(Canvas* this, int32_t x, int32_t y, int32_t width, int32_t height, int32_t color);
+static void Canvas__circle_8(Canvas* this, int32_t cx, int32_t cy, int32_t x, int32_t y, int32_t color);
+static void Canvas__set_pixel_index1(Canvas* this, int32_t x, int32_t y, int32_t color);
+static void Canvas__set_pixel_index2(Canvas* this, int32_t x, int32_t y, int32_t color);
+static void Canvas__set_pixel_index4(Canvas* this, int32_t x, int32_t y, int32_t color);
+static void Canvas__set_pixel_index8(Canvas* this, int32_t x, int32_t y, int32_t color_index);
 static void Canvas__render_index1(Canvas* this, RenderContext* context, Rect* viewpoint, Point* offset);
 static void Canvas__render_index2(Canvas* this, RenderContext* context, Rect* viewpoint, Point* offset);
 static void Canvas__render_index4(Canvas* this, RenderContext* context, Rect* viewpoint, Point* offset);
@@ -169,7 +172,7 @@ static inline int32_t Canvas__abs(Canvas* this, int32_t v);
 static inline int32_t Canvas__sign(Canvas* this, int32_t v);
 static inline int32_t Canvas__sqrt(Canvas* this, int32_t n);
 void Graphics_set_root(Graphics* this, Node* node);
-void Graphics_init(Graphics* this, GraphicsDriver* driver, __Slice_uint8_t buffer0, __Slice_uint8_t buffer1, PixelFormat pixel_format, uint16_t background, Rotation rotation, bool dirty_render);
+void Graphics_init(Graphics* this, GraphicsDriver* driver, PixelFormat pixel_format, uint16_t background, Rotation rotation, bool dirty_render);
 void Graphics_mark_dirty(Graphics* this, Rect* rect);
 void Graphics_render(Graphics* this);
 static __Slice_uint8_t Graphics__front_strip(Graphics* this);
@@ -216,7 +219,7 @@ const float math__E = 2.71828182845904523536f;
 static int32_t __mp_argc = 0;
 static char** __mp_argv = NULL;
 
-Canvas* node__canvas__create_canvas(Allocator* allocator, Rect* rect, uint16_t background, IndexFormat index_format, __Slice_uint16_t palette) {
+Canvas* node__canvas__create_canvas(Allocator* allocator, Rect* rect, int32_t background, IndexFormat index_format, __Slice_uint16_t palette) {
   Canvas* canvas = Allocator_allocate_Canvas(allocator);
   Canvas__init(canvas, allocator, rect, background, index_format, palette);
   return canvas;
@@ -243,36 +246,36 @@ Node* Canvas_get_node(Canvas* this) {
   return (&this->_node);
 }
 
-static inline void Canvas_draw_pixel(Canvas* this, int32_t x, int32_t y, uint16_t color) {
+static inline void Canvas_draw_pixel(Canvas* this, int32_t x, int32_t y, int32_t color_index) {
   switch (this->_index_format) {
     case IndexFormat_Index1: {
-      Canvas__set_pixel_index1(this, x, y, color);
+      Canvas__set_pixel_index1(this, x, y, color_index);
       break;
     }
     case IndexFormat_Index2: {
-      Canvas__set_pixel_index2(this, x, y, color);
+      Canvas__set_pixel_index2(this, x, y, color_index);
       break;
     }
     case IndexFormat_Index4: {
-      Canvas__set_pixel_index4(this, x, y, color);
+      Canvas__set_pixel_index4(this, x, y, color_index);
       break;
     }
     case IndexFormat_Index8: {
-      Canvas__set_pixel_index8(this, x, y, color);
+      Canvas__set_pixel_index8(this, x, y, color_index);
       break;
     }
   }
 }
 
-static inline void Canvas_draw_hline(Canvas* this, int32_t x, int32_t y, int32_t width, uint16_t color) {
-  Canvas__fill_rect(this, x, y, width, 1, color);
+static inline void Canvas_draw_hline(Canvas* this, int32_t x, int32_t y, int32_t width, int32_t color_index) {
+  Canvas__fill_rect(this, x, y, width, 1, color_index);
 }
 
-static inline void Canvas_draw_vline(Canvas* this, int32_t x, int32_t y, int32_t height, uint16_t color) {
-  Canvas__fill_rect(this, x, y, 1, height, color);
+static inline void Canvas_draw_vline(Canvas* this, int32_t x, int32_t y, int32_t height, int32_t color_index) {
+  Canvas__fill_rect(this, x, y, 1, height, color_index);
 }
 
-void Canvas_draw_line(Canvas* this, int32_t x0, int32_t y0, int32_t x1, int32_t y1, uint16_t color) {
+void Canvas_draw_line(Canvas* this, int32_t x0, int32_t y0, int32_t x1, int32_t y1, int32_t color_index) {
   int32_t dx = Canvas__abs(this, (x1 - x0));
   int32_t dy = Canvas__abs(this, (y1 - y0));
   int32_t sx = Canvas__sign(this, (x1 - x0));
@@ -281,7 +284,7 @@ void Canvas_draw_line(Canvas* this, int32_t x0, int32_t y0, int32_t x1, int32_t 
   int32_t cx = x0;
   int32_t cy = y0;
   while (true) {
-    Canvas_draw_pixel(this, cx, cy, color);
+    Canvas_draw_pixel(this, cx, cy, color_index);
     if (((cx == x1) && (cy == y1))) {
       return;
     }
@@ -297,26 +300,26 @@ void Canvas_draw_line(Canvas* this, int32_t x0, int32_t y0, int32_t x1, int32_t 
   }
 }
 
-void Canvas_draw_rect(Canvas* this, int32_t x, int32_t y, int32_t width, int32_t height, uint16_t color) {
-  Canvas__fill_rect(this, x, y, width, 1, color);
-  Canvas__fill_rect(this, x, ((y + height) - 1), width, 1, color);
-  Canvas__fill_rect(this, x, (y + 1), 1, (height - 2), color);
-  Canvas__fill_rect(this, ((x + width) - 1), (y + 1), 1, (height - 2), color);
+void Canvas_draw_rect(Canvas* this, int32_t x, int32_t y, int32_t width, int32_t height, int32_t color_index) {
+  Canvas__fill_rect(this, x, y, width, 1, color_index);
+  Canvas__fill_rect(this, x, ((y + height) - 1), width, 1, color_index);
+  Canvas__fill_rect(this, x, (y + 1), 1, (height - 2), color_index);
+  Canvas__fill_rect(this, ((x + width) - 1), (y + 1), 1, (height - 2), color_index);
 }
 
-static inline void Canvas_fill_rect(Canvas* this, int32_t x, int32_t y, int32_t width, int32_t height, uint16_t color) {
-  Canvas__fill_rect(this, x, y, width, height, color);
+static inline void Canvas_fill_rect(Canvas* this, int32_t x, int32_t y, int32_t width, int32_t height, int32_t color_index) {
+  Canvas__fill_rect(this, x, y, width, height, color_index);
 }
 
 void Canvas_clear(Canvas* this) {
   Canvas__fill_rect(this, this->_viewpoint.x, this->_viewpoint.y, this->_viewpoint.width, this->_viewpoint.height, this->_background);
 }
 
-void Canvas_draw_circle(Canvas* this, int32_t cx, int32_t cy, int32_t r, uint16_t color) {
+void Canvas_draw_circle(Canvas* this, int32_t cx, int32_t cy, int32_t r, int32_t color_index) {
   int32_t x = 0;
   int32_t y = r;
   int32_t d = (1 - r);
-  Canvas__circle_8(this, cx, cy, x, y, color);
+  Canvas__circle_8(this, cx, cy, x, y, color_index);
   while ((x < y)) {
     if ((d < 0)) {
       (d += ((2 * x) + 3));
@@ -325,24 +328,24 @@ void Canvas_draw_circle(Canvas* this, int32_t cx, int32_t cy, int32_t r, uint16_
       (y -= 1);
     }
     (x += 1);
-    Canvas__circle_8(this, cx, cy, x, y, color);
+    Canvas__circle_8(this, cx, cy, x, y, color_index);
   }
 }
 
-void Canvas_fill_circle(Canvas* this, int32_t cx, int32_t cy, int32_t r, uint16_t color) {
+void Canvas_fill_circle(Canvas* this, int32_t cx, int32_t cy, int32_t r, int32_t color_index) {
   for (int32_t dy = (-r); dy < (r + 1); dy++) {
     int32_t dx = Canvas__sqrt(this, ((r * r) - (dy * dy)));
-    Canvas__fill_rect(this, (cx - dx), (cy + dy), ((dx * 2) + 1), 1, color);
+    Canvas__fill_rect(this, (cx - dx), (cy + dy), ((dx * 2) + 1), 1, color_index);
   }
 }
 
-void Canvas_draw_triangle(Canvas* this, int32_t x0, int32_t y0, int32_t x1, int32_t y1, int32_t x2, int32_t y2, uint16_t color) {
-  Canvas_draw_line(this, x0, y0, x1, y1, color);
-  Canvas_draw_line(this, x1, y1, x2, y2, color);
-  Canvas_draw_line(this, x2, y2, x0, y0, color);
+void Canvas_draw_triangle(Canvas* this, int32_t x0, int32_t y0, int32_t x1, int32_t y1, int32_t x2, int32_t y2, int32_t color_index) {
+  Canvas_draw_line(this, x0, y0, x1, y1, color_index);
+  Canvas_draw_line(this, x1, y1, x2, y2, color_index);
+  Canvas_draw_line(this, x2, y2, x0, y0, color_index);
 }
 
-void Canvas_fill_triangle(Canvas* this, int32_t x0, int32_t y0, int32_t x1, int32_t y1, int32_t x2, int32_t y2, uint16_t color) {
+void Canvas_fill_triangle(Canvas* this, int32_t x0, int32_t y0, int32_t x1, int32_t y1, int32_t x2, int32_t y2, int32_t color_index) {
   int32_t tx = 0;
   int32_t ty = 0;
   if ((y1 < y0)) {
@@ -387,27 +390,27 @@ void Canvas_fill_triangle(Canvas* this, int32_t x0, int32_t y0, int32_t x1, int3
       (xa = xb);
       (xb = tx);
     }
-    Canvas__fill_rect(this, xa, y, ((xb - xa) + 1), 1, color);
+    Canvas__fill_rect(this, xa, y, ((xb - xa) + 1), 1, color_index);
   }
 }
 
-void Canvas_draw_round_rect(Canvas* this, int32_t x, int32_t y, int32_t width, int32_t height, int32_t r, uint16_t color) {
-  Canvas__fill_rect(this, (x + r), y, (width - (2 * r)), 1, color);
-  Canvas__fill_rect(this, (x + r), ((y + height) - 1), (width - (2 * r)), 1, color);
-  Canvas__fill_rect(this, x, (y + r), 1, (height - (2 * r)), color);
-  Canvas__fill_rect(this, ((x + width) - 1), (y + r), 1, (height - (2 * r)), color);
+void Canvas_draw_round_rect(Canvas* this, int32_t x, int32_t y, int32_t width, int32_t height, int32_t r, int32_t color_index) {
+  Canvas__fill_rect(this, (x + r), y, (width - (2 * r)), 1, color_index);
+  Canvas__fill_rect(this, (x + r), ((y + height) - 1), (width - (2 * r)), 1, color_index);
+  Canvas__fill_rect(this, x, (y + r), 1, (height - (2 * r)), color_index);
+  Canvas__fill_rect(this, ((x + width) - 1), (y + r), 1, (height - (2 * r)), color_index);
   int32_t px = 0;
   int32_t py = r;
   int32_t d = (1 - r);
   while ((px <= py)) {
-    Canvas_draw_pixel(this, ((((x + width) - 1) - r) + py), ((y + r) - px), color);
-    Canvas_draw_pixel(this, ((x + r) - py), ((y + r) - px), color);
-    Canvas_draw_pixel(this, ((((x + width) - 1) - r) + py), ((((y + height) - 1) - r) + px), color);
-    Canvas_draw_pixel(this, ((x + r) - py), ((((y + height) - 1) - r) + px), color);
-    Canvas_draw_pixel(this, ((((x + width) - 1) - r) + px), ((y + r) - py), color);
-    Canvas_draw_pixel(this, ((x + r) - px), ((y + r) - py), color);
-    Canvas_draw_pixel(this, ((((x + width) - 1) - r) + px), ((((y + height) - 1) - r) + py), color);
-    Canvas_draw_pixel(this, ((x + r) - px), ((((y + height) - 1) - r) + py), color);
+    Canvas_draw_pixel(this, ((((x + width) - 1) - r) + py), ((y + r) - px), color_index);
+    Canvas_draw_pixel(this, ((x + r) - py), ((y + r) - px), color_index);
+    Canvas_draw_pixel(this, ((((x + width) - 1) - r) + py), ((((y + height) - 1) - r) + px), color_index);
+    Canvas_draw_pixel(this, ((x + r) - py), ((((y + height) - 1) - r) + px), color_index);
+    Canvas_draw_pixel(this, ((((x + width) - 1) - r) + px), ((y + r) - py), color_index);
+    Canvas_draw_pixel(this, ((x + r) - px), ((y + r) - py), color_index);
+    Canvas_draw_pixel(this, ((((x + width) - 1) - r) + px), ((((y + height) - 1) - r) + py), color_index);
+    Canvas_draw_pixel(this, ((x + r) - px), ((((y + height) - 1) - r) + py), color_index);
     if ((d < 0)) {
       (d += ((2 * px) + 3));
     } else {
@@ -418,7 +421,7 @@ void Canvas_draw_round_rect(Canvas* this, int32_t x, int32_t y, int32_t width, i
   }
 }
 
-void Canvas_fill_round_rect(Canvas* this, int32_t x, int32_t y, int32_t width, int32_t height, int32_t r, uint16_t color) {
+void Canvas_fill_round_rect(Canvas* this, int32_t x, int32_t y, int32_t width, int32_t height, int32_t r, int32_t color) {
   Canvas__fill_rect(this, (x + r), y, (width - (2 * r)), height, color);
   int32_t px = 0;
   int32_t py = r;
@@ -438,7 +441,7 @@ void Canvas_fill_round_rect(Canvas* this, int32_t x, int32_t y, int32_t width, i
   }
 }
 
-static void Canvas__init(Canvas* this, Allocator* allocator, Rect* rect, uint16_t background, IndexFormat index_format, __Slice_uint16_t palette) {
+static void Canvas__init(Canvas* this, Allocator* allocator, Rect* rect, int32_t background, IndexFormat index_format, __Slice_uint16_t palette) {
   Rect_copy((&this->_viewpoint), rect);
   (this->_background = background);
   (this->_index_format = index_format);
@@ -484,7 +487,7 @@ static inline void Canvas__render(Canvas* this, RenderContext* context, Rect* re
   }
 }
 
-static void Canvas__fill_rect(Canvas* this, int32_t x, int32_t y, int32_t width, int32_t height, uint16_t color) {
+static void Canvas__fill_rect(Canvas* this, int32_t x, int32_t y, int32_t width, int32_t height, int32_t color) {
   if (((width <= 0) || (height <= 0))) {
     return;
   }
@@ -503,7 +506,7 @@ static void Canvas__fill_rect(Canvas* this, int32_t x, int32_t y, int32_t width,
   }
 }
 
-static void Canvas__circle_8(Canvas* this, int32_t cx, int32_t cy, int32_t x, int32_t y, uint16_t color) {
+static void Canvas__circle_8(Canvas* this, int32_t cx, int32_t cy, int32_t x, int32_t y, int32_t color) {
   Canvas_draw_pixel(this, (cx + x), (cy + y), color);
   Canvas_draw_pixel(this, (cx - x), (cy + y), color);
   Canvas_draw_pixel(this, (cx + x), (cy - y), color);
@@ -514,7 +517,7 @@ static void Canvas__circle_8(Canvas* this, int32_t cx, int32_t cy, int32_t x, in
   Canvas_draw_pixel(this, (cx - y), (cy - x), color);
 }
 
-static void Canvas__set_pixel_index1(Canvas* this, int32_t x, int32_t y, uint16_t color) {
+static void Canvas__set_pixel_index1(Canvas* this, int32_t x, int32_t y, int32_t color) {
   if (((((x < this->_viewpoint.x) || (x >= (this->_viewpoint.x + this->_viewpoint.width))) || (y < this->_viewpoint.y)) || (y >= (this->_viewpoint.y + this->_viewpoint.height)))) {
     return;
   }
@@ -528,18 +531,18 @@ static void Canvas__set_pixel_index1(Canvas* this, int32_t x, int32_t y, uint16_
   }
 }
 
-static void Canvas__set_pixel_index2(Canvas* this, int32_t x, int32_t y, uint16_t color) {
+static void Canvas__set_pixel_index2(Canvas* this, int32_t x, int32_t y, int32_t color) {
   if (((((x < this->_viewpoint.x) || (x >= (this->_viewpoint.x + this->_viewpoint.width))) || (y < this->_viewpoint.y)) || (y >= (this->_viewpoint.y + this->_viewpoint.height)))) {
     return;
   }
   int32_t lx = (x - this->_viewpoint.x);
   int32_t ly = (y - this->_viewpoint.y);
   int32_t index = ((ly * ((this->_viewpoint.width + 3) / 4)) + (lx / 4));
-  uint16_t shift = ((3 - (((uint16_t)(lx)) & 3)) * 2);
+  int32_t shift = ((3 - (lx & 3)) * 2);
   (this->_buffer.ptr[index] = ((this->_buffer.ptr[index] & ((uint8_t)((~(0x03 << shift))))) | ((uint8_t)(((color & 0x03) << shift)))));
 }
 
-static void Canvas__set_pixel_index4(Canvas* this, int32_t x, int32_t y, uint16_t color) {
+static void Canvas__set_pixel_index4(Canvas* this, int32_t x, int32_t y, int32_t color) {
   if (((((x < this->_viewpoint.x) || (x >= (this->_viewpoint.x + this->_viewpoint.width))) || (y < this->_viewpoint.y)) || (y >= (this->_viewpoint.y + this->_viewpoint.height)))) {
     return;
   }
@@ -553,13 +556,13 @@ static void Canvas__set_pixel_index4(Canvas* this, int32_t x, int32_t y, uint16_
   }
 }
 
-static void Canvas__set_pixel_index8(Canvas* this, int32_t x, int32_t y, uint16_t color) {
+static void Canvas__set_pixel_index8(Canvas* this, int32_t x, int32_t y, int32_t color_index) {
   if (((((x < this->_viewpoint.x) || (x >= (this->_viewpoint.x + this->_viewpoint.width))) || (y < this->_viewpoint.y)) || (y >= (this->_viewpoint.y + this->_viewpoint.height)))) {
     return;
   }
   int32_t lx = (x - this->_viewpoint.x);
   int32_t ly = (y - this->_viewpoint.y);
-  (this->_buffer.ptr[((ly * this->_viewpoint.width) + lx)] = ((uint8_t)(color)));
+  (this->_buffer.ptr[((ly * this->_viewpoint.width) + lx)] = ((uint8_t)(color_index)));
 }
 
 static void Canvas__render_index1(Canvas* this, RenderContext* context, Rect* viewpoint, Point* offset) {
@@ -679,14 +682,14 @@ void Graphics_set_root(Graphics* this, Node* node) {
   (this->_root = node);
 }
 
-void Graphics_init(Graphics* this, GraphicsDriver* driver, __Slice_uint8_t buffer0, __Slice_uint8_t buffer1, PixelFormat pixel_format, uint16_t background, Rotation rotation, bool dirty_render) {
+void Graphics_init(Graphics* this, GraphicsDriver* driver, PixelFormat pixel_format, uint16_t background, Rotation rotation, bool dirty_render) {
   (this->_driver = driver);
-  (this->_strip0 = buffer0);
-  (this->_strip1 = buffer1);
+  (this->_strip0 = driver->strip0);
+  (this->_strip1 = driver->strip1);
   (this->_context.format = pixel_format);
   (this->_background = background);
   (this->_dirty_render = dirty_render);
-  if ((buffer1.size == 0)) {
+  if ((driver->strip1.size == 0)) {
     (this->_single_buffer = true);
   }
   (this->_render_window.x = 0);
@@ -751,6 +754,7 @@ void Graphics_render(Graphics* this) {
     (this->_front_buffer = (1 - this->_front_buffer));
     this->_driver->flush(this->_driver->handle, (&this->_context.viewpoint), Graphics__front_strip(this));
   }
+  this->_driver->frame_complete(this->_driver->handle);
   if (this->_dirty_render) {
     (this->_render_window.x = 0);
     (this->_render_window.y = 0);
