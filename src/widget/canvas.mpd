@@ -9,10 +9,9 @@ import mcu32.allocator::Allocator
 // Canvas — indexed pixel buffer. color parameter is always a palette index.
 // All draw calls write into buffer. No flush, no driver, no rotation.
 
-fun create_canvas(allocator: &Allocator, rect: &Rect,
-        background: int, index_format: IndexFormat, palette: u16[]) &Canvas
+fun create_canvas(allocator: &Allocator, bound: &Rect, background: int, index_format: IndexFormat, palette: u16[]) &Canvas
     val canvas: &Canvas = allocator.allocate<Canvas>()
-    canvas._init(allocator, rect, background, index_format, palette)
+    canvas._init(allocator, bound, background, index_format, palette)
     return canvas
 
 fun render_canvas(context: &RenderContext, offset: &Point, handle: &void)
