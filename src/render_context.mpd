@@ -1,8 +1,11 @@
 import graphics::PixelFormat
+import graphics::IndexFormat
 import geometry::*
 import math::min
 import math::max
 import font.font::Font
+import palette::TRANSPARENT
+import sprite_sheet::SpriteSheet
 
 // Strip render context passed to every node's render method.
 // offset_x/offset_y are NOT in context — passed separately so containers can
@@ -168,6 +171,93 @@ class RenderContext
                             point.x = cursor_x + px
                             set_pixel(&point, color)
                 cursor_x += font.advance_x
+
+    fun draw_sprite(x: int, y: int, sheet: &SpriteSheet, id: int)
+        _render_sprite(x, y, sheet, id, sheet.palette)
+
+    fun draw_sprite_palette(x: int, y: int, sheet: &SpriteSheet, id: int, palette: u16[])
+        _render_sprite(x, y, sheet, id, palette)
+
+    fun _render_sprite(x: int, y: int, sheet: &SpriteSheet, id: int, palette: u16[])
+        val width: int = sheet.pixel_width()
+        val height: int = sheet.pixel_height()
+        val x0: int = max<int>(x, viewpoint.x)
+        val x1: int = min<int>(x + width, viewpoint.x + viewpoint.width)
+        val y0: int = max<int>(y, viewpoint.y)
+        val y1: int = min<int>(y + height, viewpoint.y + viewpoint.height)
+        if x0 >= x1 || y0 >= y1
+            return
+        val base: int = sheet.sprite_data_offset(id)
+        if sheet.index_format == IndexFormat.Index1
+            _render_sprite_index1(x, y, width, x0, x1, y0, y1, sheet.data, base, palette)
+        if sheet.index_format == IndexFormat.Index2
+            _render_sprite_index2(x, y, width, x0, x1, y0, y1, sheet.data, base, palette)
+        if sheet.index_format == IndexFormat.Index4
+            _render_sprite_index4(x, y, width, x0, x1, y0, y1, sheet.data, base, palette)
+        if sheet.index_format == IndexFormat.Index8
+            _render_sprite_index8(x, y, width, x0, x1, y0, y1, sheet.data, base, palette)
+
+    fun _render_sprite_index1(x: int, y: int, width: int, x0: int, x1: int, y0: int, y1: int, data: byte[], base: int, palette: u16[])
+        val row_bytes: int = (width + 7) / 8
+        val point: Point
+        for sy in y0..y1
+            val ly: int = sy - y
+            point.y = sy
+            for sx in x0..x1
+                val lx: int = sx - x
+                val idx: int = base + ly * row_bytes + lx / 8
+                var p: int = 0
+                if (data[idx] & byte(0x80 >> (lx & 7))) != 0
+                    p = 1
+                val color: u16 = palette[p]
+                if color != TRANSPARENT
+                    point.x = sx
+                    set_pixel(&point, color)
+
+    fun _render_sprite_index2(x: int, y: int, width: int, x0: int, x1: int, y0: int, y1: int, data: byte[], base: int, palette: u16[])
+        val row_bytes: int = (width + 3) / 4
+        val point: Point
+        for sy in y0..y1
+            val ly: int = sy - y
+            point.y = sy
+            for sx in x0..x1
+                val lx: int = sx - x
+                val idx: int = base + ly * row_bytes + lx / 4
+                val shift: int = (3 - (lx & 3)) * 2
+                val p: int = (int(data[idx]) >> shift) & 0x03
+                val color: u16 = palette[p]
+                if color != TRANSPARENT
+                    point.x = sx
+                    set_pixel(&point, color)
+
+    fun _render_sprite_index4(x: int, y: int, width: int, x0: int, x1: int, y0: int, y1: int, data: byte[], base: int, palette: u16[])
+        val row_bytes: int = (width + 1) / 2
+        val point: Point
+        for sy in y0..y1
+            val ly: int = sy - y
+            point.y = sy
+            for sx in x0..x1
+                val lx: int = sx - x
+                val idx: int = base + ly * row_bytes + lx / 2
+                var p: int = int(data[idx]) & 0x0F
+                if (lx & 1) == 0
+                    p = (int(data[idx]) >> 4) & 0x0F
+                val color: u16 = palette[p]
+                if color != TRANSPARENT
+                    point.x = sx
+                    set_pixel(&point, color)
+
+    fun _render_sprite_index8(x: int, y: int, width: int, x0: int, x1: int, y0: int, y1: int, data: byte[], base: int, palette: u16[])
+        val point: Point
+        for sy in y0..y1
+            val ly: int = sy - y
+            point.y = sy
+            for sx in x0..x1
+                val lx: int = sx - x
+                val color: u16 = palette[data[base + ly * width + lx]]
+                if color != TRANSPARENT
+                    point.x = sx
+                    set_pixel(&point, color)
 
     // ── private: format-specific pixel writers (strip-local coords) ───────────
 
