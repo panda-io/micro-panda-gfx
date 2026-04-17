@@ -15,6 +15,7 @@ typedef struct Allocator Allocator;
 typedef struct Node Node;
 typedef struct RenderContext RenderContext;
 typedef struct Font Font;
+typedef struct SpriteSheet SpriteSheet;
 
 typedef enum {
   PixelFormat_Mono = 0,
@@ -93,8 +94,15 @@ typedef enum {
   GpioLevel_HIGH = 1,
 } GpioLevel;
 
+typedef enum {
+  SpriteSize_Size8x8 = 0,
+  SpriteSize_Size16x16 = 1,
+  SpriteSize_Size32x32 = 2,
+} SpriteSize;
+
 typedef struct { uint8_t* ptr; int32_t size; } __Slice_uint8_t;
 typedef struct { uint16_t* ptr; int32_t size; } __Slice_uint16_t;
+typedef struct { int32_t* ptr; int32_t size; } __Slice_int32_t;
 
 typedef void (*__Fn_void_void_p_Rotation)(void*, Rotation);
 typedef void (*__Fn_void_void_p_Rect_p_Slice_uint8_t)(void*, Rect*, __Slice_uint8_t);
@@ -252,6 +260,15 @@ struct Font {
   uint8_t last;
 };
 
+struct SpriteSheet {
+  __Slice_uint8_t data;
+  __Slice_int32_t offsets;
+  __Slice_uint16_t palette;
+  SpriteSize size;
+  int32_t count;
+  IndexFormat index_format;
+};
+
 struct Node {
   Rect bound;
   void* handle;
@@ -323,26 +340,27 @@ static void Graphics__clear_strip(Graphics* this, __Slice_uint8_t buffer);
 static inline void Point_copy(Point* this, Point* point);
 static inline void Rect_copy(Rect* this, Rect* rect);
 static inline bool Rect_intersect(Rect* this, Rect* rect);
+static inline bool Rect_clip(Rect* this, Rect* result, Rect* viewpoint, Point* offset);
 static inline bool Rect_contains(Rect* this, Point* point);
 static inline void Rect_merge(Rect* this, Rect* rect);
-static void drivers__ssd1306___ssd1306_set_rotation(void* handle, Rotation r);
-static void drivers__ssd1306___ssd1306_wait(void* handle);
-static void drivers__ssd1306___ssd1306_flush(void* handle, Rect* rect, __Slice_uint8_t buf);
-static void drivers__ssd1306___ssd1306_frame_complete(void* handle);
-static int32_t drivers__ssd1306___cmd1(int32_t dev, int32_t c);
-static int32_t drivers__ssd1306___cmd2(int32_t dev, int32_t c, int32_t v);
-static void drivers__ssd1306___hw_init(int32_t dev, int32_t rows);
-static void drivers__ssd1306___attach(SSD1306* display, __Slice_uint8_t strip, __Slice_uint8_t page_buf, DisplayConn* conn, int32_t width, int32_t height);
-void drivers__ssd1306__attach_ssd1306_128x32(SSD1306_128x32* display, DisplayConn* conn);
-void drivers__ssd1306__attach_ssd1306_128x64(SSD1306_128x64* display, DisplayConn* conn);
+static void driver__ssd1306___ssd1306_set_rotation(void* handle, Rotation r);
+static void driver__ssd1306___ssd1306_wait(void* handle);
+static void driver__ssd1306___ssd1306_flush(void* handle, Rect* rect, __Slice_uint8_t buf);
+static void driver__ssd1306___ssd1306_frame_complete(void* handle);
+static int32_t driver__ssd1306___cmd1(int32_t dev, int32_t c);
+static int32_t driver__ssd1306___cmd2(int32_t dev, int32_t c, int32_t v);
+static void driver__ssd1306___hw_init(int32_t dev, int32_t rows);
+static void driver__ssd1306___attach(SSD1306* display, __Slice_uint8_t strip, __Slice_uint8_t page_buf, DisplayConn* conn, int32_t width, int32_t height);
+void driver__ssd1306__attach_ssd1306_128x32(SSD1306_128x32* display, DisplayConn* conn);
+void driver__ssd1306__attach_ssd1306_128x64(SSD1306_128x64* display, DisplayConn* conn);
 GraphicsDriver* SSD1306_128x32_get_driver(SSD1306_128x32* this);
 GraphicsDriver* SSD1306_128x64_get_driver(SSD1306_128x64* this);
 static void SSD1306__set_rotation(SSD1306* this, Rotation r);
 static void SSD1306__blit(SSD1306* this, Rect* rect, __Slice_uint8_t src);
 static void SSD1306__flush(SSD1306* this, Rect* rect, __Slice_uint8_t buf);
 static void SSD1306__write_all_pages(SSD1306* this);
-Canvas* widget__canvas__create_canvas(Allocator* allocator, Rect* bound, int32_t background, IndexFormat index_format, __Slice_uint16_t palette);
-void widget__canvas__render_canvas(RenderContext* context, Point* offset, void* handle);
+Canvas* canvas__create_canvas(Allocator* allocator, Rect* bound, int32_t background, IndexFormat index_format, __Slice_uint16_t palette);
+void canvas__render_canvas(RenderContext* context, Point* offset, void* handle);
 Node* Canvas_get_node(Canvas* this);
 static inline void Canvas_draw_pixel(Canvas* this, int32_t x, int32_t y, int32_t color_index);
 static inline void Canvas_draw_hline(Canvas* this, int32_t x, int32_t y, int32_t width, int32_t color_index);
@@ -391,6 +409,13 @@ static inline void RenderContext_draw_rect(RenderContext* this, Rect* rect, uint
 void RenderContext_fill_round_rect(RenderContext* this, Rect* rect, int32_t radius, uint16_t color);
 void RenderContext_draw_round_rect(RenderContext* this, Rect* rect, int32_t radius, uint16_t color);
 void RenderContext_draw_text(RenderContext* this, int32_t x, int32_t y, __Slice_uint8_t text, Font* font, uint16_t color);
+void RenderContext_draw_sprite(RenderContext* this, int32_t x, int32_t y, SpriteSheet* sheet, int32_t id);
+void RenderContext_draw_sprite_palette(RenderContext* this, int32_t x, int32_t y, SpriteSheet* sheet, int32_t id, __Slice_uint16_t palette);
+static void RenderContext__render_sprite(RenderContext* this, int32_t x, int32_t y, SpriteSheet* sheet, int32_t id, __Slice_uint16_t palette);
+static void RenderContext__render_sprite_index1(RenderContext* this, int32_t x, int32_t y, int32_t width, int32_t x0, int32_t x1, int32_t y0, int32_t y1, __Slice_uint8_t data, int32_t base, __Slice_uint16_t palette);
+static void RenderContext__render_sprite_index2(RenderContext* this, int32_t x, int32_t y, int32_t width, int32_t x0, int32_t x1, int32_t y0, int32_t y1, __Slice_uint8_t data, int32_t base, __Slice_uint16_t palette);
+static void RenderContext__render_sprite_index4(RenderContext* this, int32_t x, int32_t y, int32_t width, int32_t x0, int32_t x1, int32_t y0, int32_t y1, __Slice_uint8_t data, int32_t base, __Slice_uint16_t palette);
+static void RenderContext__render_sprite_index8(RenderContext* this, int32_t x, int32_t y, int32_t width, int32_t x0, int32_t x1, int32_t y0, int32_t y1, __Slice_uint8_t data, int32_t base, __Slice_uint16_t palette);
 static inline void RenderContext__set_pixel_mono(RenderContext* this, Point* point, uint16_t color);
 static inline void RenderContext__set_pixel_rgb565(RenderContext* this, Point* point, uint16_t color);
 static inline void memory__memory_set(__Slice_uint8_t dst, uint8_t value);
@@ -401,6 +426,10 @@ void gpio__gpio_mode(int32_t pin, GpioMode mode);
 static inline void gpio__gpio_write(int32_t pin, GpioLevel value);
 static inline GpioLevel gpio__gpio_read(int32_t pin);
 int32_t Font_get_pixel(Font* this, uint8_t c, int32_t px, int32_t py);
+static inline int32_t SpriteSheet_pixel_width(SpriteSheet* this);
+static inline int32_t SpriteSheet_pixel_height(SpriteSheet* this);
+static inline int32_t SpriteSheet_bytes_per_sprite(SpriteSheet* this);
+static inline int32_t SpriteSheet_sprite_data_offset(SpriteSheet* this, int32_t id);
 static inline int32_t math__min_int32_t(int32_t a, int32_t b);
 static inline int32_t math__max_int32_t(int32_t a, int32_t b);
 static inline Canvas* Allocator_allocate_Canvas(Allocator* this);
@@ -430,12 +459,12 @@ void main__main(void) {
   (conn.reset_pin = (-1));
   (conn.back_light_pin = (-1));
   Allocator_init((&main___allocator), (__Slice_uint8_t){main___allocator_buffer, 2048});
-  drivers__ssd1306__attach_ssd1306_128x64((&main___driver), (&conn));
+  driver__ssd1306__attach_ssd1306_128x64((&main___driver), (&conn));
   Rect rect = (Rect){0, 0, 128, 64};
-  Canvas* canvas = widget__canvas__create_canvas((&main___allocator), (&rect), 0, IndexFormat_Index1, (__Slice_uint16_t){palette__PALETTE_MONO, 2});
+  Canvas* canvas = canvas__create_canvas((&main___allocator), (&rect), 0, IndexFormat_Index1, (__Slice_uint16_t){palette__PALETTE_MONO, 2});
   Canvas_clear(canvas);
   Canvas_draw_rect(canvas, 0, 0, 128, 16, MonoColor_On);
-  Canvas_draw_rect(canvas, 0, 16, 128, 48, MonoColor_On);
+  Canvas_draw_rect(canvas, 0, 32, 128, 32, MonoColor_On);
   Graphics_init((&main___gfx), SSD1306_128x64_get_driver((&main___driver)), PixelFormat_Mono, 0, Rotation_R0, false);
   Graphics_set_root((&main___gfx), Canvas_get_node(canvas));
   Graphics_render((&main___gfx));
@@ -605,6 +634,21 @@ static inline bool Rect_intersect(Rect* this, Rect* rect) {
   return ((((rect->x < (this->x + this->width)) && ((rect->x + rect->width) > this->x)) && (rect->y < (this->y + this->height))) && ((rect->y + rect->height) > this->y));
 }
 
+static inline bool Rect_clip(Rect* this, Rect* result, Rect* viewpoint, Point* offset) {
+  int32_t x0 = math__max_int32_t((this->x + offset->x), viewpoint->x);
+  int32_t y0 = math__max_int32_t((this->y + offset->y), viewpoint->y);
+  int32_t x1 = math__min_int32_t(((this->x + offset->x) + this->width), (viewpoint->x + viewpoint->width));
+  int32_t y1 = math__min_int32_t(((this->y + offset->y) + this->height), (viewpoint->y + viewpoint->height));
+  if (((x0 >= x1) || (y0 >= y1))) {
+    return false;
+  }
+  (result->x = x0);
+  (result->y = y0);
+  (result->width = (x1 - x0));
+  (result->height = (y1 - y0));
+  return true;
+}
+
 static inline bool Rect_contains(Rect* this, Point* point) {
   return ((((point->x >= this->x) && (point->x < (this->x + this->width))) && (point->y >= this->y)) && (point->y < (this->y + this->height)));
 }
@@ -618,29 +662,29 @@ static inline void Rect_merge(Rect* this, Rect* rect) {
   (this->height = (bottom - this->y));
 }
 
-static void drivers__ssd1306___ssd1306_set_rotation(void* handle, Rotation r) {
+static void driver__ssd1306___ssd1306_set_rotation(void* handle, Rotation r) {
   SSD1306__set_rotation(((SSD1306*)(handle)), r);
 }
 
-static void drivers__ssd1306___ssd1306_wait(void* handle) {
+static void driver__ssd1306___ssd1306_wait(void* handle) {
 }
 
-static void drivers__ssd1306___ssd1306_flush(void* handle, Rect* rect, __Slice_uint8_t buf) {
+static void driver__ssd1306___ssd1306_flush(void* handle, Rect* rect, __Slice_uint8_t buf) {
   SSD1306__flush(((SSD1306*)(handle)), rect, buf);
 }
 
-static void drivers__ssd1306___ssd1306_frame_complete(void* handle) {
+static void driver__ssd1306___ssd1306_frame_complete(void* handle) {
   SSD1306__write_all_pages(((SSD1306*)(handle)));
 }
 
-static int32_t drivers__ssd1306___cmd1(int32_t dev, int32_t c) {
+static int32_t driver__ssd1306___cmd1(int32_t dev, int32_t c) {
   uint8_t buf[2];
   (buf[0] = 0x00);
   (buf[1] = ((uint8_t)(c)));
   return i2c__i2c_write(dev, (__Slice_uint8_t){(&buf[0]), 2}, 2);
 }
 
-static int32_t drivers__ssd1306___cmd2(int32_t dev, int32_t c, int32_t v) {
+static int32_t driver__ssd1306___cmd2(int32_t dev, int32_t c, int32_t v) {
   uint8_t buf[3];
   (buf[0] = 0x00);
   (buf[1] = ((uint8_t)(c)));
@@ -648,30 +692,30 @@ static int32_t drivers__ssd1306___cmd2(int32_t dev, int32_t c, int32_t v) {
   return i2c__i2c_write(dev, (__Slice_uint8_t){(&buf[0]), 3}, 3);
 }
 
-static void drivers__ssd1306___hw_init(int32_t dev, int32_t rows) {
-  drivers__ssd1306___cmd1(dev, 0xAE);
-  drivers__ssd1306___cmd2(dev, 0xD5, 0x80);
-  drivers__ssd1306___cmd2(dev, 0xA8, (rows - 1));
-  drivers__ssd1306___cmd2(dev, 0xD3, 0x00);
-  drivers__ssd1306___cmd1(dev, 0x40);
-  drivers__ssd1306___cmd2(dev, 0x8D, 0x14);
-  drivers__ssd1306___cmd2(dev, 0x20, 0x00);
-  drivers__ssd1306___cmd1(dev, 0xA1);
-  drivers__ssd1306___cmd1(dev, 0xC8);
+static void driver__ssd1306___hw_init(int32_t dev, int32_t rows) {
+  driver__ssd1306___cmd1(dev, 0xAE);
+  driver__ssd1306___cmd2(dev, 0xD5, 0x80);
+  driver__ssd1306___cmd2(dev, 0xA8, (rows - 1));
+  driver__ssd1306___cmd2(dev, 0xD3, 0x00);
+  driver__ssd1306___cmd1(dev, 0x40);
+  driver__ssd1306___cmd2(dev, 0x8D, 0x14);
+  driver__ssd1306___cmd2(dev, 0x20, 0x00);
+  driver__ssd1306___cmd1(dev, 0xA1);
+  driver__ssd1306___cmd1(dev, 0xC8);
   if ((rows == 32)) {
-    drivers__ssd1306___cmd2(dev, 0xDA, 0x02);
+    driver__ssd1306___cmd2(dev, 0xDA, 0x02);
   } else {
-    drivers__ssd1306___cmd2(dev, 0xDA, 0x12);
+    driver__ssd1306___cmd2(dev, 0xDA, 0x12);
   }
-  drivers__ssd1306___cmd2(dev, 0x81, 0xCF);
-  drivers__ssd1306___cmd2(dev, 0xD9, 0xF1);
-  drivers__ssd1306___cmd2(dev, 0xDB, 0x40);
-  drivers__ssd1306___cmd1(dev, 0xA4);
-  drivers__ssd1306___cmd1(dev, 0xA6);
-  drivers__ssd1306___cmd1(dev, 0xAF);
+  driver__ssd1306___cmd2(dev, 0x81, 0xCF);
+  driver__ssd1306___cmd2(dev, 0xD9, 0xF1);
+  driver__ssd1306___cmd2(dev, 0xDB, 0x40);
+  driver__ssd1306___cmd1(dev, 0xA4);
+  driver__ssd1306___cmd1(dev, 0xA6);
+  driver__ssd1306___cmd1(dev, 0xAF);
 }
 
-static void drivers__ssd1306___attach(SSD1306* display, __Slice_uint8_t strip, __Slice_uint8_t page_buf, DisplayConn* conn, int32_t width, int32_t height) {
+static void driver__ssd1306___attach(SSD1306* display, __Slice_uint8_t strip, __Slice_uint8_t page_buf, DisplayConn* conn, int32_t width, int32_t height) {
   (display->_device = conn->device);
   (display->_width = width);
   (display->_height = height);
@@ -687,20 +731,20 @@ static void drivers__ssd1306___attach(SSD1306* display, __Slice_uint8_t strip, _
   (display->driver.strip0 = strip);
   (display->driver.strip1 = (__Slice_uint8_t){NULL, 0});
   (display->driver.handle = ((void*)(display)));
-  (display->driver.set_rotation = drivers__ssd1306___ssd1306_set_rotation);
-  (display->driver.wait = drivers__ssd1306___ssd1306_wait);
-  (display->driver.flush = drivers__ssd1306___ssd1306_flush);
-  (display->driver.frame_complete = drivers__ssd1306___ssd1306_frame_complete);
+  (display->driver.set_rotation = driver__ssd1306___ssd1306_set_rotation);
+  (display->driver.wait = driver__ssd1306___ssd1306_wait);
+  (display->driver.flush = driver__ssd1306___ssd1306_flush);
+  (display->driver.frame_complete = driver__ssd1306___ssd1306_frame_complete);
 }
 
-void drivers__ssd1306__attach_ssd1306_128x32(SSD1306_128x32* display, DisplayConn* conn) {
-  drivers__ssd1306___attach((&display->_ssd1306), (__Slice_uint8_t){display->_strip, 512}, (__Slice_uint8_t){display->_page_buf, 513}, conn, 128, 32);
-  drivers__ssd1306___hw_init(conn->device, 32);
+void driver__ssd1306__attach_ssd1306_128x32(SSD1306_128x32* display, DisplayConn* conn) {
+  driver__ssd1306___attach((&display->_ssd1306), (__Slice_uint8_t){display->_strip, 512}, (__Slice_uint8_t){display->_page_buf, 513}, conn, 128, 32);
+  driver__ssd1306___hw_init(conn->device, 32);
 }
 
-void drivers__ssd1306__attach_ssd1306_128x64(SSD1306_128x64* display, DisplayConn* conn) {
-  drivers__ssd1306___attach((&display->_ssd1306), (__Slice_uint8_t){display->_strip, 1024}, (__Slice_uint8_t){display->_page_buf, 1025}, conn, 128, 64);
-  drivers__ssd1306___hw_init(conn->device, 64);
+void driver__ssd1306__attach_ssd1306_128x64(SSD1306_128x64* display, DisplayConn* conn) {
+  driver__ssd1306___attach((&display->_ssd1306), (__Slice_uint8_t){display->_strip, 1024}, (__Slice_uint8_t){display->_page_buf, 1025}, conn, 128, 64);
+  driver__ssd1306___hw_init(conn->device, 64);
 }
 
 GraphicsDriver* SSD1306_128x32_get_driver(SSD1306_128x32* this) {
@@ -759,27 +803,19 @@ static void SSD1306__write_all_pages(SSD1306* this) {
   i2c__i2c_write(this->_device, this->_page_buf, (1 + (total_pages * this->_width)));
 }
 
-Canvas* widget__canvas__create_canvas(Allocator* allocator, Rect* bound, int32_t background, IndexFormat index_format, __Slice_uint16_t palette) {
+Canvas* canvas__create_canvas(Allocator* allocator, Rect* bound, int32_t background, IndexFormat index_format, __Slice_uint16_t palette) {
   Canvas* canvas = Allocator_allocate_Canvas(allocator);
   Canvas__init(canvas, allocator, bound, background, index_format, palette);
   return canvas;
 }
 
-void widget__canvas__render_canvas(RenderContext* context, Point* offset, void* handle) {
+void canvas__render_canvas(RenderContext* context, Point* offset, void* handle) {
   Canvas* canvas = ((Canvas*)(handle));
-  Rect bound = {0};
-  (bound.x = (canvas->_node.bound.x + offset->x));
-  (bound.y = (canvas->_node.bound.y + offset->y));
-  (bound.width = canvas->_node.bound.width);
-  (bound.height = canvas->_node.bound.height);
-  if ((!RenderContext_intersect(context, (&bound)))) {
+  Rect clipped = {0};
+  if ((!Rect_clip((&canvas->_node.bound), (&clipped), (&context->viewpoint), offset))) {
     return;
   }
-  (bound.x = math__max_int32_t(bound.x, context->viewpoint.x));
-  (bound.y = math__max_int32_t(bound.y, context->viewpoint.y));
-  (bound.width = (math__min_int32_t((bound.x + bound.width), (context->viewpoint.x + context->viewpoint.width)) - bound.x));
-  (bound.height = (math__min_int32_t((bound.y + bound.height), (context->viewpoint.y + context->viewpoint.height)) - bound.y));
-  Canvas__render(canvas, context, (&bound), offset);
+  Canvas__render(canvas, context, (&clipped), offset);
 }
 
 Node* Canvas_get_node(Canvas* this) {
@@ -1003,7 +1039,7 @@ static void Canvas__init(Canvas* this, Allocator* allocator, Rect* bound, int32_
     (this->_buffer = Allocator_allocate_array_uint8_t(allocator, buffer_size));
   }
   (this->_node.handle = ((void*)(this)));
-  (this->_node.renderer = widget__canvas__render_canvas);
+  (this->_node.renderer = canvas__render_canvas);
 }
 
 static inline void Canvas__render(Canvas* this, RenderContext* context, Rect* rect, Point* offset) {
@@ -1281,16 +1317,16 @@ static inline void RenderContext_set_pixel(RenderContext* this, Point* point, ui
 }
 
 static inline void RenderContext_fill_rect(RenderContext* this, Rect* rect, uint16_t color) {
-  if ((!Rect_intersect((&this->viewpoint), rect))) {
+  Rect clipped = {0};
+  Point zero = {0};
+  (zero.x = 0);
+  (zero.y = 0);
+  if ((!Rect_clip(rect, (&clipped), (&this->viewpoint), (&zero)))) {
     return;
   }
-  int32_t x0 = math__max_int32_t(rect->x, this->viewpoint.x);
-  int32_t x1 = math__min_int32_t((rect->x + rect->width), (this->viewpoint.x + this->viewpoint.width));
-  int32_t y0 = math__max_int32_t(rect->y, this->viewpoint.y);
-  int32_t y1 = math__min_int32_t((rect->y + rect->height), (this->viewpoint.y + this->viewpoint.height));
   Point point = {0};
-  for (int32_t y = y0; y < y1; y++) {
-    for (int32_t x = x0; x < x1; x++) {
+  for (int32_t y = clipped.y; y < (clipped.y + clipped.height); y++) {
+    for (int32_t x = clipped.x; x < (clipped.x + clipped.width); x++) {
       (point.x = x);
       (point.y = y);
       if ((this->format == PixelFormat_Mono)) {
@@ -1429,6 +1465,124 @@ void RenderContext_draw_text(RenderContext* this, int32_t x, int32_t y, __Slice_
   }
 }
 
+void RenderContext_draw_sprite(RenderContext* this, int32_t x, int32_t y, SpriteSheet* sheet, int32_t id) {
+  RenderContext__render_sprite(this, x, y, sheet, id, sheet->palette);
+}
+
+void RenderContext_draw_sprite_palette(RenderContext* this, int32_t x, int32_t y, SpriteSheet* sheet, int32_t id, __Slice_uint16_t palette) {
+  RenderContext__render_sprite(this, x, y, sheet, id, palette);
+}
+
+static void RenderContext__render_sprite(RenderContext* this, int32_t x, int32_t y, SpriteSheet* sheet, int32_t id, __Slice_uint16_t palette) {
+  int32_t width = SpriteSheet_pixel_width(sheet);
+  int32_t height = SpriteSheet_pixel_height(sheet);
+  Rect sprite = {0};
+  (sprite.x = x);
+  (sprite.y = y);
+  (sprite.width = width);
+  (sprite.height = height);
+  Rect clipped = {0};
+  Point zero = {0};
+  (zero.x = 0);
+  (zero.y = 0);
+  if ((!Rect_clip((&sprite), (&clipped), (&this->viewpoint), (&zero)))) {
+    return;
+  }
+  int32_t base = SpriteSheet_sprite_data_offset(sheet, id);
+  if ((sheet->index_format == IndexFormat_Index1)) {
+    RenderContext__render_sprite_index1(this, x, y, width, clipped.x, (clipped.x + clipped.width), clipped.y, (clipped.y + clipped.height), sheet->data, base, palette);
+  }
+  if ((sheet->index_format == IndexFormat_Index2)) {
+    RenderContext__render_sprite_index2(this, x, y, width, clipped.x, (clipped.x + clipped.width), clipped.y, (clipped.y + clipped.height), sheet->data, base, palette);
+  }
+  if ((sheet->index_format == IndexFormat_Index4)) {
+    RenderContext__render_sprite_index4(this, x, y, width, clipped.x, (clipped.x + clipped.width), clipped.y, (clipped.y + clipped.height), sheet->data, base, palette);
+  }
+  if ((sheet->index_format == IndexFormat_Index8)) {
+    RenderContext__render_sprite_index8(this, x, y, width, clipped.x, (clipped.x + clipped.width), clipped.y, (clipped.y + clipped.height), sheet->data, base, palette);
+  }
+}
+
+static void RenderContext__render_sprite_index1(RenderContext* this, int32_t x, int32_t y, int32_t width, int32_t x0, int32_t x1, int32_t y0, int32_t y1, __Slice_uint8_t data, int32_t base, __Slice_uint16_t palette) {
+  int32_t row_bytes = ((width + 7) / 8);
+  Point point = {0};
+  for (int32_t sy = y0; sy < y1; sy++) {
+    int32_t ly = (sy - y);
+    (point.y = sy);
+    for (int32_t sx = x0; sx < x1; sx++) {
+      int32_t lx = (sx - x);
+      int32_t idx = ((base + (ly * row_bytes)) + (lx / 8));
+      int32_t p = 0;
+      if (((data.ptr[idx] & ((uint8_t)((0x80 >> (lx & 7))))) != 0)) {
+        (p = 1);
+      }
+      uint16_t color = palette.ptr[p];
+      if ((color != palette__TRANSPARENT)) {
+        (point.x = sx);
+        RenderContext_set_pixel(this, (&point), color);
+      }
+    }
+  }
+}
+
+static void RenderContext__render_sprite_index2(RenderContext* this, int32_t x, int32_t y, int32_t width, int32_t x0, int32_t x1, int32_t y0, int32_t y1, __Slice_uint8_t data, int32_t base, __Slice_uint16_t palette) {
+  int32_t row_bytes = ((width + 3) / 4);
+  Point point = {0};
+  for (int32_t sy = y0; sy < y1; sy++) {
+    int32_t ly = (sy - y);
+    (point.y = sy);
+    for (int32_t sx = x0; sx < x1; sx++) {
+      int32_t lx = (sx - x);
+      int32_t idx = ((base + (ly * row_bytes)) + (lx / 4));
+      int32_t shift = ((3 - (lx & 3)) * 2);
+      int32_t p = ((((int32_t)(data.ptr[idx])) >> shift) & 0x03);
+      uint16_t color = palette.ptr[p];
+      if ((color != palette__TRANSPARENT)) {
+        (point.x = sx);
+        RenderContext_set_pixel(this, (&point), color);
+      }
+    }
+  }
+}
+
+static void RenderContext__render_sprite_index4(RenderContext* this, int32_t x, int32_t y, int32_t width, int32_t x0, int32_t x1, int32_t y0, int32_t y1, __Slice_uint8_t data, int32_t base, __Slice_uint16_t palette) {
+  int32_t row_bytes = ((width + 1) / 2);
+  Point point = {0};
+  for (int32_t sy = y0; sy < y1; sy++) {
+    int32_t ly = (sy - y);
+    (point.y = sy);
+    for (int32_t sx = x0; sx < x1; sx++) {
+      int32_t lx = (sx - x);
+      int32_t idx = ((base + (ly * row_bytes)) + (lx / 2));
+      int32_t p = (((int32_t)(data.ptr[idx])) & 0x0F);
+      if (((lx & 1) == 0)) {
+        (p = ((((int32_t)(data.ptr[idx])) >> 4) & 0x0F));
+      }
+      uint16_t color = palette.ptr[p];
+      if ((color != palette__TRANSPARENT)) {
+        (point.x = sx);
+        RenderContext_set_pixel(this, (&point), color);
+      }
+    }
+  }
+}
+
+static void RenderContext__render_sprite_index8(RenderContext* this, int32_t x, int32_t y, int32_t width, int32_t x0, int32_t x1, int32_t y0, int32_t y1, __Slice_uint8_t data, int32_t base, __Slice_uint16_t palette) {
+  Point point = {0};
+  for (int32_t sy = y0; sy < y1; sy++) {
+    int32_t ly = (sy - y);
+    (point.y = sy);
+    for (int32_t sx = x0; sx < x1; sx++) {
+      int32_t lx = (sx - x);
+      uint16_t color = palette.ptr[data.ptr[((base + (ly * width)) + lx)]];
+      if ((color != palette__TRANSPARENT)) {
+        (point.x = sx);
+        RenderContext_set_pixel(this, (&point), color);
+      }
+    }
+  }
+}
+
 static inline void RenderContext__set_pixel_mono(RenderContext* this, Point* point, uint16_t color) {
   int32_t index = ((point->y * ((this->viewpoint.width + 7) / 8)) + (point->x / 8));
   if ((color == 0)) {
@@ -1490,6 +1644,42 @@ int32_t Font_get_pixel(Font* this, uint8_t c, int32_t px, int32_t py) {
   }
   int32_t offset = ((((int32_t)((c - this->first))) * this->width) + px);
   return ((int32_t)(((this->data.ptr[offset] >> ((uint8_t)(py))) & ((uint8_t)(1)))));
+}
+
+static inline int32_t SpriteSheet_pixel_width(SpriteSheet* this) {
+  if ((this->size == SpriteSize_Size8x8)) {
+    return 8;
+  }
+  if ((this->size == SpriteSize_Size16x16)) {
+    return 16;
+  }
+  return 32;
+}
+
+static inline int32_t SpriteSheet_pixel_height(SpriteSheet* this) {
+  return SpriteSheet_pixel_width(this);
+}
+
+static inline int32_t SpriteSheet_bytes_per_sprite(SpriteSheet* this) {
+  int32_t w = SpriteSheet_pixel_width(this);
+  int32_t h = SpriteSheet_pixel_height(this);
+  if ((this->index_format == IndexFormat_Index1)) {
+    return (((w + 7) / 8) * h);
+  }
+  if ((this->index_format == IndexFormat_Index2)) {
+    return (((w + 3) / 4) * h);
+  }
+  if ((this->index_format == IndexFormat_Index4)) {
+    return (((w + 1) / 2) * h);
+  }
+  return (w * h);
+}
+
+static inline int32_t SpriteSheet_sprite_data_offset(SpriteSheet* this, int32_t id) {
+  if ((this->offsets.size > 0)) {
+    return this->offsets.ptr[id];
+  }
+  return (id * SpriteSheet_bytes_per_sprite(this));
 }
 
 static inline int32_t math__min_int32_t(int32_t a, int32_t b) {

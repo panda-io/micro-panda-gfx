@@ -2,8 +2,8 @@ import i2c::*
 import graphics::*
 import geometry::*
 import display::*
-import drivers.ssd1306::*
-import widget.canvas::*
+import driver.ssd1306::*
+import canvas::*
 import palette::*
 import rtos::*
 import mcu32.allocator::Allocator
@@ -33,7 +33,7 @@ fun main()
     val canvas: &Canvas = create_canvas(&_allocator, &rect, 0, IndexFormat.Index1, PALETTE_MONO)
     canvas.clear()
     canvas.draw_rect(0, 0, 128, 16, MonoColor.On)
-    canvas.draw_rect(0, 16, 128, 48, MonoColor.On)
+    canvas.draw_rect(0, 32, 128, 32, MonoColor.On)
 
     _gfx.init(_driver.get_driver(), PixelFormat.Mono, 0, Rotation.R0, false)
     _gfx.set_root(canvas.get_node())

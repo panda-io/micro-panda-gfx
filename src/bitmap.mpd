@@ -1,4 +1,9 @@
 import graphics::IndexFormat
+import compress::Compress
+
+enum Compress
+    None = 0
+    RLE  = 1
 
 // Fixed sprite dimensions — all sprites in a sheet share the same square size.
 enum SpriteSize
@@ -9,7 +14,7 @@ enum SpriteSize
 // SpriteSheet — flat collection of equal-size indexed-color sprites.
 //
 // Uncompressed (offsets empty): fixed stride; offset = id * bytes_per_sprite().
-// RLE (future): offsets[id] gives byte start in data[].
+// RLE: offsets[id] gives byte start in data[].
 //
 // Memory placement:
 //   data, offsets → const → flash (read-only asset data)
@@ -21,9 +26,10 @@ class SpriteSheet
     var size:         SpriteSize
     var count:        int
     var index_format: IndexFormat
+    var compress:     Compress
 
     @inline
-    fun pixel_width() int
+    fun sprite_width() int
         if size == SpriteSize.Size8x8
             return 8
         if size == SpriteSize.Size16x16
@@ -31,13 +37,13 @@ class SpriteSheet
         return 32
 
     @inline
-    fun pixel_height() int
-        return pixel_width()
+    fun sprite_height() int
+        return sprite_width()
 
     @inline
     fun bytes_per_sprite() int
-        val w: int = pixel_width()
-        val h: int = pixel_height()
+        val w: int = sprite_width()
+        val h: int = sprite_height()
         if index_format == IndexFormat.Index1
             return ((w + 7) / 8) * h
         if index_format == IndexFormat.Index2
@@ -52,3 +58,16 @@ class SpriteSheet
         if offsets.size() > 0
             return offsets[id]
         return id * bytes_per_sprite()
+
+// Image — single indexed-color bitmap with arbitrary dimensions.
+//
+// Memory placement:
+//   data    → const → flash (read-only asset data)
+//   palette → val   → RAM  (hot-path palette access)
+class Image
+    var data:         byte[]
+    var palette:      u16[]
+    var width:        int
+    var height:       int
+    var index_format: IndexFormat
+    var compress:     Compress

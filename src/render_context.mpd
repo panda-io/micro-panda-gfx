@@ -179,8 +179,8 @@ class RenderContext
         _render_sprite(x, y, sheet, id, palette)
 
     fun _render_sprite(x: int, y: int, sheet: &SpriteSheet, id: int, palette: u16[])
-        val width: int = sheet.pixel_width()
-        val height: int = sheet.pixel_height()
+        val width: int = sheet.sprite_width()
+        val height: int = sheet.sprite_height()
         val sprite: Rect
         sprite.x = x
         sprite.y = y
