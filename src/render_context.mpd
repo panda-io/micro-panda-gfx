@@ -35,15 +35,15 @@ class RenderContext
 
     @inline
     fun fill_rect(rect: &Rect, color: u16)
-        if !viewpoint.intersect(rect)
+        val clipped: Rect
+        val zero: Point
+        zero.x = 0
+        zero.y = 0
+        if !rect.clip(&clipped, &viewpoint, &zero)
             return
-        val x0: int = max<int>(rect.x, viewpoint.x)
-        val x1: int = min<int>(rect.x + rect.width, viewpoint.x + viewpoint.width)
-        val y0: int = max<int>(rect.y, viewpoint.y)
-        val y1: int = min<int>(rect.y + rect.height, viewpoint.y + viewpoint.height)
         val point: Point
-        for y in y0..y1
-            for x in x0..x1
+        for y in clipped.y..clipped.y + clipped.height
+            for x in clipped.x..clipped.x + clipped.width
                 point.x = x
                 point.y = y
                 if format == PixelFormat.Mono
@@ -181,21 +181,26 @@ class RenderContext
     fun _render_sprite(x: int, y: int, sheet: &SpriteSheet, id: int, palette: u16[])
         val width: int = sheet.pixel_width()
         val height: int = sheet.pixel_height()
-        val x0: int = max<int>(x, viewpoint.x)
-        val x1: int = min<int>(x + width, viewpoint.x + viewpoint.width)
-        val y0: int = max<int>(y, viewpoint.y)
-        val y1: int = min<int>(y + height, viewpoint.y + viewpoint.height)
-        if x0 >= x1 || y0 >= y1
+        val sprite: Rect
+        sprite.x = x
+        sprite.y = y
+        sprite.width = width
+        sprite.height = height
+        val clipped: Rect
+        val zero: Point
+        zero.x = 0
+        zero.y = 0
+        if !sprite.clip(&clipped, &viewpoint, &zero)
             return
         val base: int = sheet.sprite_data_offset(id)
         if sheet.index_format == IndexFormat.Index1
-            _render_sprite_index1(x, y, width, x0, x1, y0, y1, sheet.data, base, palette)
+            _render_sprite_index1(x, y, width, clipped.x, clipped.x + clipped.width, clipped.y, clipped.y + clipped.height, sheet.data, base, palette)
         if sheet.index_format == IndexFormat.Index2
-            _render_sprite_index2(x, y, width, x0, x1, y0, y1, sheet.data, base, palette)
+            _render_sprite_index2(x, y, width, clipped.x, clipped.x + clipped.width, clipped.y, clipped.y + clipped.height, sheet.data, base, palette)
         if sheet.index_format == IndexFormat.Index4
-            _render_sprite_index4(x, y, width, x0, x1, y0, y1, sheet.data, base, palette)
+            _render_sprite_index4(x, y, width, clipped.x, clipped.x + clipped.width, clipped.y, clipped.y + clipped.height, sheet.data, base, palette)
         if sheet.index_format == IndexFormat.Index8
-            _render_sprite_index8(x, y, width, x0, x1, y0, y1, sheet.data, base, palette)
+            _render_sprite_index8(x, y, width, clipped.x, clipped.x + clipped.width, clipped.y, clipped.y + clipped.height, sheet.data, base, palette)
 
     fun _render_sprite_index1(x: int, y: int, width: int, x0: int, x1: int, y0: int, y1: int, data: byte[], base: int, palette: u16[])
         val row_bytes: int = (width + 7) / 8

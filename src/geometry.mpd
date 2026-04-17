@@ -33,6 +33,20 @@ class Rect
                 rect.y < y + height && rect.y + rect.height > y)
 
     @inline
+    fun clip(result: &Rect, viewpoint: &Rect, offset: &Point) bool
+        val x0: int = max<int>(x + offset.x, viewpoint.x)
+        val y0: int = max<int>(y + offset.y, viewpoint.y)
+        val x1: int = min<int>(x + offset.x + width, viewpoint.x + viewpoint.width)
+        val y1: int = min<int>(y + offset.y + height, viewpoint.y + viewpoint.height)
+        if x0 >= x1 || y0 >= y1
+            return false
+        result.x      = x0
+        result.y      = y0
+        result.width  = x1 - x0
+        result.height = y1 - y0
+        return true
+
+    @inline
     fun contains(point: &Point) bool
         return point.x >= x && point.x < x + width && point.y >= y && point.y < y + height
 

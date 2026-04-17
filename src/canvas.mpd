@@ -16,18 +16,10 @@ fun create_canvas(allocator: &Allocator, bound: &Rect, background: int, index_fo
 
 fun render_canvas(context: &RenderContext, offset: &Point, handle: &void)
     val canvas: &Canvas = &Canvas(handle)
-    val bound: Rect
-    bound.x = canvas._node.bound.x + offset.x
-    bound.y = canvas._node.bound.y + offset.y
-    bound.width = canvas._node.bound.width
-    bound.height = canvas._node.bound.height
-    if !context.intersect(&bound)
+    val clipped: Rect
+    if !canvas._node.bound.clip(&clipped, &context.viewpoint, offset)
         return
-    bound.x = max<int>(bound.x, context.viewpoint.x)
-    bound.y = max<int>(bound.y, context.viewpoint.y)
-    bound.width = min<int>(bound.x + bound.width, context.viewpoint.x + context.viewpoint.width) - bound.x
-    bound.height = min<int>(bound.y + bound.height, context.viewpoint.y + context.viewpoint.height) - bound.y
-    canvas._render(context, &bound, offset)
+    canvas._render(context, &clipped, offset)
 
 class Canvas
     var _node:          Node
