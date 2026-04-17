@@ -1,0 +1,35 @@
+import geometry::*
+import render_context::RenderContext
+import node::Node
+import mcu32.allocator::Allocator
+import mcu32.collection::ArrayList
+
+fun create_container(allocator: &Allocator, bound: &Rect, capacity: int) &Container
+    val container: &Container = allocator.allocate<Container>()
+    container._init(allocator, bound, capacity)
+    return container
+
+fun render_container(context: &RenderContext, offset: &Point, handle: &void)
+    val container: &Container = &Container(handle)
+    val child_offset: Point
+    child_offset.x = offset.x + container._node.bound.x
+    child_offset.y = offset.y + container._node.bound.y
+    for index in 0..container._children.size()
+        val child: &Node = container._children.get(index)
+        child.renderer(context, &child_offset, child.handle)
+
+class Container
+    var _node:     Node
+    var _children: ArrayList<&Node>
+
+    fun get_node() &Node
+        return &_node
+
+    fun add(node: &Node) bool
+        return _children.push(node)
+
+    fun _init(allocator: &Allocator, bound: &Rect, capacity: int)
+        _node.bound.copy(bound)
+        _children.init(allocator, capacity)
+        _node.handle = &void(this)
+        _node.renderer = render_container
