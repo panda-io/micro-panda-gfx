@@ -1,9 +1,12 @@
-import widget.canvas::*
-import graphics::*
+import canvas::*
+import container::*
+import display::*
 import geometry::*
+import graphics::*
 import node::*
 import palette::*
 import render_context::*
+import sprite_sheet::*
 
 // do nothing, just test that the file is parsed correctly
 fun main()
