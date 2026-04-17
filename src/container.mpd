@@ -4,9 +4,9 @@ import node::Node
 import mcu32.allocator::Allocator
 import mcu32.collection::ArrayList
 
-fun create_container(allocator: &Allocator, bound: &Rect, capacity: int) &Container
+fun create_container(allocator: &Allocator, bound: &Rect, capacity: int, clip_content: bool) &Container
     val container: &Container = allocator.allocate<Container>()
-    container._init(allocator, bound, capacity)
+    container._init(allocator, bound, capacity, clip_content)
     return container
 
 fun render_container(context: &RenderContext, offset: &Point, handle: &void)
@@ -14,13 +14,26 @@ fun render_container(context: &RenderContext, offset: &Point, handle: &void)
     val child_offset: Point
     child_offset.x = offset.x + container._node.bound.x
     child_offset.y = offset.y + container._node.bound.y
+
+    val saved: Rect
+    if container._clip_content
+        saved.copy(&context.viewpoint)
+        val clipped: Rect
+        if !container._node.bound.clip(&clipped, &context.viewpoint, offset)
+            return
+        context.viewpoint.copy(&clipped)
+
     for index in 0..container._children.size()
         val child: &Node = container._children.get(index)
         child.renderer(context, &child_offset, child.handle)
 
+    if container._clip_content
+        context.viewpoint.copy(&saved)
+
 class Container
-    var _node:     Node
-    var _children: ArrayList<&Node>
+    var _node:         Node
+    var _children:     ArrayList<&Node>
+    var _clip_content: bool
 
     fun get_node() &Node
         return &_node
@@ -28,8 +41,9 @@ class Container
     fun add(node: &Node) bool
         return _children.push(node)
 
-    fun _init(allocator: &Allocator, bound: &Rect, capacity: int)
+    fun _init(allocator: &Allocator, bound: &Rect, capacity: int, clip_content: bool)
         _node.bound.copy(bound)
         _children.init(allocator, capacity)
         _node.handle = &void(this)
         _node.renderer = render_container
+        _clip_content = clip_content
