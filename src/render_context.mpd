@@ -5,6 +5,7 @@ import math::min
 import math::max
 import font.font::Font
 import palette::TRANSPARENT
+import bitmap::Bitmap
 import bitmap::SpriteSheet
 import bitmap::Image
 
@@ -53,29 +54,35 @@ class RenderContext
                     _set_pixel_rgb565(&point, color)
 
     @inline
-    fun draw_hline(x: int, y: int, width: int, color: u16)
+    fun draw_hline(point: &Point, width: int, color: u16)
         val rect: Rect
-        rect.x = x
-        rect.y = y
+        rect.x = point.x
+        rect.y = point.y
         rect.width = width
         rect.height = 1
         fill_rect(&rect, color)
 
     @inline
-    fun draw_vline(x: int, y: int, height: int, color: u16)
+    fun draw_vline(point: &Point, height: int, color: u16)
         val rect: Rect
-        rect.x = x
-        rect.y = y
+        rect.x = point.x
+        rect.y = point.y
         rect.width = 1
         rect.height = height
         fill_rect(&rect, color)
 
     @inline
     fun draw_rect(rect: &Rect, color: u16)
-        draw_hline(rect.x,                  rect.y,                   rect.width,      color)
-        draw_hline(rect.x,                  rect.y + rect.height - 1, rect.width,      color)
-        draw_vline(rect.x,                  rect.y + 1,               rect.height - 2, color)
-        draw_vline(rect.x + rect.width - 1, rect.y + 1,               rect.height - 2, color)
+        var point: Point
+        point.x = rect.x
+        point.y = rect.y
+        draw_hline(&point, rect.width, color)
+        point.y = rect.y + rect.height - 1
+        draw_hline(&point, rect.width, color)
+        point.y = rect.y + 1
+        draw_vline(&point, rect.height - 2, color)
+        point.x = rect.x + rect.width - 1
+        draw_vline(&point, rect.height - 2, color)
 
     fun fill_round_rect(rect: &Rect, radius: int, color: u16)
         if !viewpoint.intersect(rect)
@@ -90,11 +97,18 @@ class RenderContext
         var px: int = 0
         var py: int = r
         var d:  int = 1 - r
+        var point: Point
         while px <= py
-            draw_hline(rect.x + r - py, rect.y + r - px,                    py * 2 - 1, color)
-            draw_hline(rect.x + r - py, rect.y + rect.height - r + px - 1,  py * 2 - 1, color)
-            draw_hline(rect.x + r - px, rect.y + r - py,                    px * 2 - 1, color)
-            draw_hline(rect.x + r - px, rect.y + rect.height - r + py - 1,  px * 2 - 1, color)
+            point.x = rect.x + r - py
+            point.y = rect.y + r - px
+            draw_hline(&point, py * 2 - 1, color)
+            point.y = rect.y + rect.height - r + px - 1
+            draw_hline(&point, py * 2 - 1, color)
+            point.x = rect.x + r - px
+            point.y = rect.y + r - py
+            draw_hline(&point, px * 2 - 1, color)
+            point.y = rect.y + rect.height - r + py - 1
+            draw_hline(&point, px * 2 - 1, color)
             if d < 0
                 d += 2 * px + 3
             else
@@ -106,11 +120,17 @@ class RenderContext
         if !viewpoint.intersect(rect)
             return
         val r: int = radius
-        draw_hline(rect.x + r,                  rect.y,                   rect.width - 2 * r,  color)
-        draw_hline(rect.x + r,                  rect.y + rect.height - 1, rect.width - 2 * r,  color)
-        draw_vline(rect.x,                       rect.y + r,               rect.height - 2 * r, color)
-        draw_vline(rect.x + rect.width - 1,      rect.y + r,               rect.height - 2 * r, color)
-        val point: Point
+        var point: Point
+        point.x = rect.x + r
+        point.y = rect.y
+        draw_hline(&point, rect.width - 2 * r, color)
+        point.y = rect.y + rect.height - 1
+        draw_hline(&point, rect.width - 2 * r, color)
+        point.x = rect.x
+        point.y = rect.y + r
+        draw_vline(&point, rect.height - 2 * r, color)
+        point.x = rect.x + rect.width - 1
+        draw_vline(&point, rect.height - 2 * r, color)
         var px: int = 0
         var py: int = r
         var d:  int = 1 - r
@@ -173,72 +193,31 @@ class RenderContext
                             set_pixel(&point, color)
                 cursor_x += font.advance_x
 
-    fun draw_sprite(point: &Point, sheet: &SpriteSheet, id: int)
-        _render_sprite(point, sheet, id, sheet.palette)
-
-    fun draw_sprite_palette(point: &Point, sheet: &SpriteSheet, id: int, palette: u16[])
-        _render_sprite(point, sheet, id, palette)
-
-    fun draw_image(point: &Point, image: &Image)
-        _render_image(point, image, image.palette)
-
-    fun draw_image_palette(point: &Point, image: &Image, palette: u16[])
-        _render_image(point, image, palette)
-
-    fun _render_sprite(point: &Point, sheet: &SpriteSheet, id: int, palette: u16[])
-        val width: int = sheet.sprite_width()
-        val height: int = sheet.sprite_height()
-        val sprite: Rect
-        sprite.x = point.x
-        sprite.y = point.y
-        sprite.width = width
-        sprite.height = height
+    fun draw_bitmap(rect: &Rect, data: byte[], index_format: IndexFormat, palette: u16[])
         val clipped: Rect
         val zero: Point
         zero.x = 0
         zero.y = 0
-        if !sprite.clip(&clipped, &viewpoint, &zero)
+        if !rect.clip(&clipped, &viewpoint, &zero)
             return
-        val base: int = sheet.sprite_data_offset(id)
-        if sheet.index_format == IndexFormat.Index1
-            _render_bitmap_index1(point, width, &clipped, sheet.data, base, palette)
-        if sheet.index_format == IndexFormat.Index2
-            _render_bitmap_index2(point, width, &clipped, sheet.data, base, palette)
-        if sheet.index_format == IndexFormat.Index4
-            _render_bitmap_index4(point, width, &clipped, sheet.data, base, palette)
-        if sheet.index_format == IndexFormat.Index8
-            _render_bitmap_index8(point, width, &clipped, sheet.data, base, palette)
+        if index_format == IndexFormat.Index1
+            _render_bitmap_index1(rect, &clipped, data, palette)
+        if index_format == IndexFormat.Index2
+            _render_bitmap_index2(rect, &clipped, data, palette)
+        if index_format == IndexFormat.Index4
+            _render_bitmap_index4(rect, &clipped, data, palette)
+        if index_format == IndexFormat.Index8
+            _render_bitmap_index8(rect, &clipped, data, palette)
 
-    fun _render_image(point: &Point, image: &Image, palette: u16[])
-        val bounds: Rect
-        bounds.x = point.x
-        bounds.y = point.y
-        bounds.width = image.width
-        bounds.height = image.height
-        val clipped: Rect
-        val zero: Point
-        zero.x = 0
-        zero.y = 0
-        if !bounds.clip(&clipped, &viewpoint, &zero)
-            return
-        if image.index_format == IndexFormat.Index1
-            _render_bitmap_index1(point, image.width, &clipped, image.data, 0, palette)
-        if image.index_format == IndexFormat.Index2
-            _render_bitmap_index2(point, image.width, &clipped, image.data, 0, palette)
-        if image.index_format == IndexFormat.Index4
-            _render_bitmap_index4(point, image.width, &clipped, image.data, 0, palette)
-        if image.index_format == IndexFormat.Index8
-            _render_bitmap_index8(point, image.width, &clipped, image.data, 0, palette)
-
-    fun _render_bitmap_index1(origin: &Point, width: int, clipped: &Rect, data: byte[], base: int, palette: u16[])
-        val row_bytes: int = (width + 7) / 8
+    fun _render_bitmap_index1(origin: &Rect, clipped: &Rect, data: byte[], palette: u16[])
+        val row_bytes: int = (origin.width + 7) / 8
         val point: Point
         for sy in clipped.y..clipped.y + clipped.height
             val ly: int = sy - origin.y
             point.y = sy
             for sx in clipped.x..clipped.x + clipped.width
                 val lx: int = sx - origin.x
-                val index: int = base + ly * row_bytes + lx / 8
+                val index: int = ly * row_bytes + lx / 8
                 var p: int = 0
                 if (data[index] & byte(0x80 >> (lx & 7))) != 0
                     p = 1
@@ -247,15 +226,15 @@ class RenderContext
                     point.x = sx
                     set_pixel(&point, color)
 
-    fun _render_bitmap_index2(origin: &Point, width: int, clipped: &Rect, data: byte[], base: int, palette: u16[])
-        val row_bytes: int = (width + 3) / 4
+    fun _render_bitmap_index2(origin: &Rect, clipped: &Rect, data: byte[], palette: u16[])
+        val row_bytes: int = (origin.width + 3) / 4
         val point: Point
         for sy in clipped.y..clipped.y + clipped.height
             val ly: int = sy - origin.y
             point.y = sy
             for sx in clipped.x..clipped.x + clipped.width
                 val lx: int = sx - origin.x
-                val index: int = base + ly * row_bytes + lx / 4
+                val index: int = ly * row_bytes + lx / 4
                 val shift: int = (3 - (lx & 3)) * 2
                 val p: int = (int(data[index]) >> shift) & 0x03
                 val color: u16 = palette[p]
@@ -263,15 +242,15 @@ class RenderContext
                     point.x = sx
                     set_pixel(&point, color)
 
-    fun _render_bitmap_index4(origin: &Point, width: int, clipped: &Rect, data: byte[], base: int, palette: u16[])
-        val row_bytes: int = (width + 1) / 2
+    fun _render_bitmap_index4(origin: &Rect, clipped: &Rect, data: byte[], palette: u16[])
+        val row_bytes: int = (origin.width + 1) / 2
         val point: Point
         for sy in clipped.y..clipped.y + clipped.height
             val ly: int = sy - origin.y
             point.y = sy
             for sx in clipped.x..clipped.x + clipped.width
                 val lx: int = sx - origin.x
-                val index: int = base + ly * row_bytes + lx / 2
+                val index: int = ly * row_bytes + lx / 2
                 var p: int = int(data[index]) & 0x0F
                 if (lx & 1) == 0
                     p = (int(data[index]) >> 4) & 0x0F
@@ -280,14 +259,14 @@ class RenderContext
                     point.x = sx
                     set_pixel(&point, color)
 
-    fun _render_bitmap_index8(origin: &Point, width: int, clipped: &Rect, data: byte[], base: int, palette: u16[])
+    fun _render_bitmap_index8(origin: &Rect, clipped: &Rect, data: byte[], palette: u16[])
         val point: Point
         for sy in clipped.y..clipped.y + clipped.height
             val ly: int = sy - origin.y
             point.y = sy
             for sx in clipped.x..clipped.x + clipped.width
                 val lx: int = sx - origin.x
-                val color: u16 = palette[data[base + ly * width + lx]]
+                val color: u16 = palette[data[ly * origin.width + lx]]
                 if color != TRANSPARENT
                     point.x = sx
                     set_pixel(&point, color)

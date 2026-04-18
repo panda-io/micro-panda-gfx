@@ -42,7 +42,7 @@ class Container
         return _children.push(node)
 
     fun _init(allocator: &Allocator, bound: &Rect, capacity: int, clip_content: bool)
-        _node.bound.copy(bound)
+        node.bound.copy(bound)
         _children.init(allocator, capacity)
         _node.handle = &void(this)
         _node.renderer = render_container

@@ -1,5 +1,7 @@
 import graphics::IndexFormat
 import compress::Compress
+import geometry::*
+import node::Node
 
 enum Compress
     None = 0
@@ -10,6 +12,55 @@ enum SpriteSize
     Size8x8   = 0   //  8×8  pixels
     Size16x16 = 1   // 16×16 pixels
     Size32x32 = 2   // 32×32 pixels
+
+
+fun create_bitmap_from_image(allocator: &Allocator, point: &Point, image: &Image) &Bitmap
+    var bitmap: &Bitmap = allocator.allocate<Bitmap>()
+    var bound: Rect
+    bound.x = point.x
+    bound.y = point.y
+    bound.width = image.width
+    bound.height = image.height
+    bitmap._init(&bound, image.data, image.index_format, image.palette)
+    return bitmap
+
+fun create_bitmap_from_sprite_sheet(allocator: &Allocator, point: &Point, sheet: &SpriteSheet, id: int) &Bitmap
+    var bitmap: &Bitmap = allocator.allocate<Bitmap>()
+    var bound: Rect
+    bound.x = point.x
+    bound.y = point.y
+    bound.width = sheet.sprite_width()
+    bound.height = sheet.sprite_height()
+    val offset: int = sheet.sprite_data_offset(id)
+    val length: int = sheet.sprite_data_length(id)
+    bitmap._init(&bound, { &sheet.data[offset], length}, sheet.index_format, sheet.palette)
+    return bitmap
+
+fun render_bitmap(context: &RenderContext, offset: &Point, handle: &void)
+    var bitmap: &Bitmap = &Bitmap(handle)
+    var rect: Rect
+    rect.x = offset.x + bitmap._node.bound.x
+    rect.y = offset.y + bitmap._node.bound.y
+    rect.width = bitmap._node.bound.width
+    rect.height = bitmap._node.bound.height
+    context.draw_bitmap(&rect, bitmap._data, bitmap._index_format, bitmap._palette)
+
+class Bitmap
+    var _node:          Node
+    var _data:          byte[]
+    var _index_format:  IndexFormat
+    var _palette:       u16[]
+
+    fun get_node() &Node
+        return &_node
+
+    fun _init(rect: &Rect, data: byte[], index_format: IndexFormat, palette: u16[])
+        _node.bound.copy(rect)
+        _node.handle = &void(this)
+        _node.renderer = render_bitmap
+        _data = data
+        _index_format = index_format
+        _palette = palette
 
 // SpriteSheet — flat collection of equal-size indexed-color sprites.
 //
@@ -58,6 +109,15 @@ class SpriteSheet
         if offsets.size() > 0
             return offsets[id]
         return id * bytes_per_sprite()
+
+    // Returns byte length of sprite id's data (uncompressed: fixed; RLE: from offsets table).
+    @inline
+    fun sprite_data_length(id: int) int
+        if offsets.size() > 0
+            if id + 1 < offsets.size()
+                return offsets[id + 1] - offsets[id]
+            return data.size() - offsets[id]
+        return bytes_per_sprite()
 
 // Image — single indexed-color bitmap with arbitrary dimensions.
 //

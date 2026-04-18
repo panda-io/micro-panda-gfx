@@ -28,10 +28,10 @@ class Canvas
     var _index_format:  IndexFormat
     var _palette:       u16[]
 
-    // ── public primitives ──────────────────────────────────────────────────────
-
     fun get_node() &Node
         return &_node
+
+    // ── public primitives ──────────────────────────────────────────────────────
 
     @inline
     fun draw_pixel(x: int, y: int, color_index: int)
