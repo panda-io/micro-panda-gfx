@@ -3,9 +3,11 @@ import graphics::*
 import geometry::*
 import display::*
 import driver.ssd1306::*
+import bitmap::*
 import canvas::*
 import palette::*
 import rtos::*
+import icon::*
 import mcu32.allocator::Allocator
 
 const ALLOCATOR_SIZE: int = 2048
@@ -29,14 +31,18 @@ fun main()
     _allocator.init(_allocator_buffer)
     attach_ssd1306_128x64(&_driver, &conn)
 
+    /* 
     var rect: Rect = { 0, 0, 128, 64 }
     val canvas: &Canvas = create_canvas(&_allocator, &rect, 0, IndexFormat.Index1, PALETTE_MONO)
     canvas.clear()
     canvas.draw_rect(0, 0, 128, 16, MonoColor.On)
     canvas.draw_rect(0, 32, 128, 32, MonoColor.On)
+    */
 
+    var point: Point = { 32, 0 }
+    var bitmap: &Bitmap = create_bitmap_from_image(&_allocator, &point, &icon)
     _gfx.init(_driver.get_driver(), PixelFormat.Mono, 0, Rotation.R0, false)
-    _gfx.set_root(canvas.get_node())
+    _gfx.set_root(bitmap.get_node())
     _gfx.render()
 
     while true
