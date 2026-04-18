@@ -5,7 +5,8 @@ import math::min
 import math::max
 import font.font::Font
 import palette::TRANSPARENT
-import sprite_sheet::SpriteSheet
+import bitmap::SpriteSheet
+import bitmap::Image
 
 // Strip render context passed to every node's render method.
 // offset_x/offset_y are NOT in context — passed separately so containers can
@@ -172,18 +173,24 @@ class RenderContext
                             set_pixel(&point, color)
                 cursor_x += font.advance_x
 
-    fun draw_sprite(x: int, y: int, sheet: &SpriteSheet, id: int)
-        _render_sprite(x, y, sheet, id, sheet.palette)
+    fun draw_sprite(point: &Point, sheet: &SpriteSheet, id: int)
+        _render_sprite(point, sheet, id, sheet.palette)
 
-    fun draw_sprite_palette(x: int, y: int, sheet: &SpriteSheet, id: int, palette: u16[])
-        _render_sprite(x, y, sheet, id, palette)
+    fun draw_sprite_palette(point: &Point, sheet: &SpriteSheet, id: int, palette: u16[])
+        _render_sprite(point, sheet, id, palette)
 
-    fun _render_sprite(x: int, y: int, sheet: &SpriteSheet, id: int, palette: u16[])
+    fun draw_image(point: &Point, image: &Image)
+        _render_image(point, image, image.palette)
+
+    fun draw_image_palette(point: &Point, image: &Image, palette: u16[])
+        _render_image(point, image, palette)
+
+    fun _render_sprite(point: &Point, sheet: &SpriteSheet, id: int, palette: u16[])
         val width: int = sheet.sprite_width()
         val height: int = sheet.sprite_height()
         val sprite: Rect
-        sprite.x = x
-        sprite.y = y
+        sprite.x = point.x
+        sprite.y = point.y
         sprite.width = width
         sprite.height = height
         val clipped: Rect
@@ -194,71 +201,92 @@ class RenderContext
             return
         val base: int = sheet.sprite_data_offset(id)
         if sheet.index_format == IndexFormat.Index1
-            _render_sprite_index1(x, y, width, clipped.x, clipped.x + clipped.width, clipped.y, clipped.y + clipped.height, sheet.data, base, palette)
+            _render_bitmap_index1(point, width, &clipped, sheet.data, base, palette)
         if sheet.index_format == IndexFormat.Index2
-            _render_sprite_index2(x, y, width, clipped.x, clipped.x + clipped.width, clipped.y, clipped.y + clipped.height, sheet.data, base, palette)
+            _render_bitmap_index2(point, width, &clipped, sheet.data, base, palette)
         if sheet.index_format == IndexFormat.Index4
-            _render_sprite_index4(x, y, width, clipped.x, clipped.x + clipped.width, clipped.y, clipped.y + clipped.height, sheet.data, base, palette)
+            _render_bitmap_index4(point, width, &clipped, sheet.data, base, palette)
         if sheet.index_format == IndexFormat.Index8
-            _render_sprite_index8(x, y, width, clipped.x, clipped.x + clipped.width, clipped.y, clipped.y + clipped.height, sheet.data, base, palette)
+            _render_bitmap_index8(point, width, &clipped, sheet.data, base, palette)
 
-    fun _render_sprite_index1(x: int, y: int, width: int, x0: int, x1: int, y0: int, y1: int, data: byte[], base: int, palette: u16[])
+    fun _render_image(point: &Point, image: &Image, palette: u16[])
+        val bounds: Rect
+        bounds.x = point.x
+        bounds.y = point.y
+        bounds.width = image.width
+        bounds.height = image.height
+        val clipped: Rect
+        val zero: Point
+        zero.x = 0
+        zero.y = 0
+        if !bounds.clip(&clipped, &viewpoint, &zero)
+            return
+        if image.index_format == IndexFormat.Index1
+            _render_bitmap_index1(point, image.width, &clipped, image.data, 0, palette)
+        if image.index_format == IndexFormat.Index2
+            _render_bitmap_index2(point, image.width, &clipped, image.data, 0, palette)
+        if image.index_format == IndexFormat.Index4
+            _render_bitmap_index4(point, image.width, &clipped, image.data, 0, palette)
+        if image.index_format == IndexFormat.Index8
+            _render_bitmap_index8(point, image.width, &clipped, image.data, 0, palette)
+
+    fun _render_bitmap_index1(origin: &Point, width: int, clipped: &Rect, data: byte[], base: int, palette: u16[])
         val row_bytes: int = (width + 7) / 8
         val point: Point
-        for sy in y0..y1
-            val ly: int = sy - y
+        for sy in clipped.y..clipped.y + clipped.height
+            val ly: int = sy - origin.y
             point.y = sy
-            for sx in x0..x1
-                val lx: int = sx - x
-                val idx: int = base + ly * row_bytes + lx / 8
+            for sx in clipped.x..clipped.x + clipped.width
+                val lx: int = sx - origin.x
+                val index: int = base + ly * row_bytes + lx / 8
                 var p: int = 0
-                if (data[idx] & byte(0x80 >> (lx & 7))) != 0
+                if (data[index] & byte(0x80 >> (lx & 7))) != 0
                     p = 1
                 val color: u16 = palette[p]
                 if color != TRANSPARENT
                     point.x = sx
                     set_pixel(&point, color)
 
-    fun _render_sprite_index2(x: int, y: int, width: int, x0: int, x1: int, y0: int, y1: int, data: byte[], base: int, palette: u16[])
+    fun _render_bitmap_index2(origin: &Point, width: int, clipped: &Rect, data: byte[], base: int, palette: u16[])
         val row_bytes: int = (width + 3) / 4
         val point: Point
-        for sy in y0..y1
-            val ly: int = sy - y
+        for sy in clipped.y..clipped.y + clipped.height
+            val ly: int = sy - origin.y
             point.y = sy
-            for sx in x0..x1
-                val lx: int = sx - x
-                val idx: int = base + ly * row_bytes + lx / 4
+            for sx in clipped.x..clipped.x + clipped.width
+                val lx: int = sx - origin.x
+                val index: int = base + ly * row_bytes + lx / 4
                 val shift: int = (3 - (lx & 3)) * 2
-                val p: int = (int(data[idx]) >> shift) & 0x03
+                val p: int = (int(data[index]) >> shift) & 0x03
                 val color: u16 = palette[p]
                 if color != TRANSPARENT
                     point.x = sx
                     set_pixel(&point, color)
 
-    fun _render_sprite_index4(x: int, y: int, width: int, x0: int, x1: int, y0: int, y1: int, data: byte[], base: int, palette: u16[])
+    fun _render_bitmap_index4(origin: &Point, width: int, clipped: &Rect, data: byte[], base: int, palette: u16[])
         val row_bytes: int = (width + 1) / 2
         val point: Point
-        for sy in y0..y1
-            val ly: int = sy - y
+        for sy in clipped.y..clipped.y + clipped.height
+            val ly: int = sy - origin.y
             point.y = sy
-            for sx in x0..x1
-                val lx: int = sx - x
-                val idx: int = base + ly * row_bytes + lx / 2
-                var p: int = int(data[idx]) & 0x0F
+            for sx in clipped.x..clipped.x + clipped.width
+                val lx: int = sx - origin.x
+                val index: int = base + ly * row_bytes + lx / 2
+                var p: int = int(data[index]) & 0x0F
                 if (lx & 1) == 0
-                    p = (int(data[idx]) >> 4) & 0x0F
+                    p = (int(data[index]) >> 4) & 0x0F
                 val color: u16 = palette[p]
                 if color != TRANSPARENT
                     point.x = sx
                     set_pixel(&point, color)
 
-    fun _render_sprite_index8(x: int, y: int, width: int, x0: int, x1: int, y0: int, y1: int, data: byte[], base: int, palette: u16[])
+    fun _render_bitmap_index8(origin: &Point, width: int, clipped: &Rect, data: byte[], base: int, palette: u16[])
         val point: Point
-        for sy in y0..y1
-            val ly: int = sy - y
+        for sy in clipped.y..clipped.y + clipped.height
+            val ly: int = sy - origin.y
             point.y = sy
-            for sx in x0..x1
-                val lx: int = sx - x
+            for sx in clipped.x..clipped.x + clipped.width
+                val lx: int = sx - origin.x
                 val color: u16 = palette[data[base + ly * width + lx]]
                 if color != TRANSPARENT
                     point.x = sx
