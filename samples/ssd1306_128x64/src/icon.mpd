@@ -4,7 +4,7 @@
 import graphics::IndexFormat
 import bitmap::Image
 
-val _icon_palette: u16[2] = [
+const _icon_palette: u16[2] = [
     0x0000,  // 0  rgb(0,0,0)
     0xF7BE,  // 1  rgb(245,245,245)
 ]
