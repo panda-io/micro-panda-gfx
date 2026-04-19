@@ -3,7 +3,6 @@ import graphics::IndexFormat
 import geometry::*
 import math::min
 import math::max
-import font.font::Font
 import palette::TRANSPARENT
 import bitmap::Bitmap
 import bitmap::SpriteSheet
@@ -173,25 +172,6 @@ class RenderContext
                 d += 2 * (px - py) + 5
                 py -= 1
             px += 1
-
-    fun draw_text(x: int, y: int, text: byte[], font: &Font, color: u16)
-        val glyph: Rect
-        glyph.y      = y
-        glyph.width  = font.width
-        glyph.height = font.height
-        val point: Point
-        var cursor_x: int = x
-        for i in 0..text.size()
-            glyph.x = cursor_x
-            val c: byte = text[i]
-            if c >= font.first && c <= font.last && viewpoint.intersect(&glyph)
-                for py in 0..font.height
-                    point.y = y + py
-                    for px in 0..font.width
-                        if font.get_pixel(c, px, py) != 0
-                            point.x = cursor_x + px
-                            set_pixel(&point, color)
-                cursor_x += font.advance_x
 
     fun draw_bitmap(rect: &Rect, data: byte[], index_format: IndexFormat, palette: u16[])
         val clipped: Rect

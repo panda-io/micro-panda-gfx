@@ -1,0 +1,67 @@
+import geometry::*
+import node::Node
+import bitmap::SpriteSheet
+import render_context::RenderContext
+
+// Monospaced bitmap font backed by a SpriteSheet.
+// Glyph id = (c - first); sheet must cover all codes in [first, last].
+// palette[0] = TRANSPARENT, palette[1] = foreground (set per draw call).
+class Font
+    var sheet:     &SpriteSheet
+    var advance_x: int    // horizontal advance per glyph (pixels)
+    var advance_y: int    // vertical advance per line    (pixels)
+    var first:     byte   // first CP437 code in sheet
+    var last:      byte   // last  CP437 code in sheet
+
+fun create_text(allocator: &Allocator, bound: &Rect, text: byte[], color: u16, wrap: bool, font: &Font) &Text
+    var t: &Text = allocator.allocate<Text>()
+    t._init(bound, text, color, wrap, font)
+    return t
+
+fun render_text(context: &RenderContext, offset: &Point, handle: &void)
+    var t: &Text = &Text(handle)
+    var font: &Font = t._font
+    font.sheet.palette[1] = t._color
+    var start_x: int    = offset.x + t._node.bound.x
+    var bound_right: int  = start_x + t._node.bound.width
+    var bound_bottom: int = offset.y + t._node.bound.y + t._node.bound.height
+    var cursor: Point
+    cursor.x = start_x
+    cursor.y = offset.y + t._node.bound.y
+    var glyph_rect: Rect
+    glyph_rect.width  = font.advance_x
+    glyph_rect.height = font.advance_y
+    for i in 0..t._text.size()
+        if t._wrap && cursor.x + font.advance_x > bound_right
+            cursor.x = start_x
+            cursor.y += font.advance_y
+            if cursor.y + font.advance_y > bound_bottom
+                break
+        var c: byte = t._text[i]
+        if c >= font.first && c <= font.last
+            var id: int = int(c) - int(font.first)
+            var data_offset: int = font.sheet.sprite_data_offset(id)
+            var data_length: int = font.sheet.sprite_data_length(id)
+            glyph_rect.x = cursor.x
+            glyph_rect.y = cursor.y
+            context.draw_bitmap(&glyph_rect, {&font.sheet.data[data_offset], data_length}, font.sheet.index_format, font.sheet.palette)
+        cursor.x += font.advance_x
+
+class Text
+    var _node:  Node
+    var _text:  byte[]
+    var _font:  &Font
+    var _color: u16
+    var _wrap:  bool
+
+    fun get_node() &Node
+        return &_node
+
+    fun _init(bound: &Rect, text: byte[], color: u16, wrap: bool, font: &Font)
+        _node.bound.copy(bound)
+        _node.handle = &void(this)
+        _node.renderer = render_text
+        _text = text
+        _font = font
+        _color = color
+        _wrap = wrap
