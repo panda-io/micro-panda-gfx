@@ -11,8 +11,8 @@
 //   // disp._ssd1306.driver is ready; strip buffer pre-wired — init gfx with &disp._ssd1306.driver
 
 import display
+import graphics
 import format::*
-import graphics::*
 import geometry::*
 import i2c::*
 import gpio::*
@@ -37,7 +37,7 @@ class SSD1306_128x32
     var _strip:    byte[512]   // 128 × 32 / 8 — mono strip buffer (wired to driver.strip0)
     var _page_buf: byte[513]   // 0x40 control byte + 4 pages × 128 columns
 
-    fun get_driver() &GraphicsDriver
+    fun get_driver() &graphics.Driver
         return &_ssd1306.driver
 
 class SSD1306_128x64
@@ -45,12 +45,12 @@ class SSD1306_128x64
     var _strip:    byte[1024]  // 128 × 64 / 8
     var _page_buf: byte[1025]  // 0x40 control byte + 8 pages × 128 columns
 
-    fun get_driver() &GraphicsDriver
+    fun get_driver() &graphics.Driver
         return &_ssd1306.driver
 
 class SSD1306
-    var driver:    GraphicsDriver
-    var gfx:       Graphics
+    var driver:    graphics.Driver
+    var gfx:       graphics.Graphics
     var _device:   int
     var _width:    int
     var _height:   int

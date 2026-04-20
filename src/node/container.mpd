@@ -1,5 +1,5 @@
 import geometry::*
-import render_context::RenderContext
+import context::Context
 import node::Node
 import mcu32.allocator::Allocator
 import mcu32.collection::ArrayList
@@ -9,7 +9,7 @@ fun create_container(allocator: &Allocator, bound: &Rect, capacity: int, clip_co
     container._init(allocator, bound, capacity, clip_content)
     return container
 
-fun render_container(context: &RenderContext, offset: &Point, handle: &void)
+fun render_container(context: &Context, offset: &Point, handle: &void)
     val container: &Container = &Container(handle)
     val child_offset: Point
     child_offset.x = offset.x + container._node.bound.x

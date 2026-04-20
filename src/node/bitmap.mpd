@@ -26,7 +26,7 @@ fun create_bitmap_from_sprite_sheet(allocator: &Allocator, point: &Point, sheet:
     bitmap._init(&bound, { &sheet.data[offset], length}, sheet.index_format, sheet.palette)
     return bitmap
 
-fun render_bitmap(context: &RenderContext, offset: &Point, handle: &void)
+fun render_bitmap(context: &Context, offset: &Point, handle: &void)
     var bitmap: &Bitmap = &Bitmap(handle)
     var rect: Rect
     rect.x = offset.x + bitmap._node.bound.x

@@ -15,6 +15,7 @@ typedef struct Rect Rect;
 typedef struct Driver Driver;
 typedef struct Graphics Graphics;
 typedef struct Node Node;
+typedef struct Context Context;
 typedef struct Allocator Allocator;
 typedef struct ArrayList_Node_p ArrayList_Node_p;
 
@@ -97,7 +98,7 @@ typedef struct { Node** ptr; int32_t size; } __Slice_Node_p;
 typedef void (*__Fn_void_void_p_Rotation)(void*, Rotation);
 typedef void (*__Fn_void_void_p_Rect_p_Slice_uint8_t)(void*, Rect*, __Slice_uint8_t);
 typedef void (*__Fn_void_void_p)(void*);
-typedef void (*__Fn_void_RenderContext_p_Point_p_void_p)(RenderContext*, Point*, void*);
+typedef void (*__Fn_void_Context_p_Point_p_void_p)(Context*, Point*, void*);
 
 #include <math.h>
 #include <string.h>
@@ -166,23 +167,16 @@ struct Allocator {
   int32_t _cursor;
 };
 
-struct Graphics {
-  Driver* _driver;
-  Node* _root;
-  uint16_t _background;
-  bool _dirty_render;
-  Rect _render_window;
-  __Slice_uint8_t _strip0;
-  __Slice_uint8_t _strip1;
-  bool _single_buffer;
-  int32_t _front_buffer;
-  RenderContext _context;
-};
-
 struct Node {
   Rect bound;
   void* handle;
-  __Fn_void_RenderContext_p_Point_p_void_p renderer;
+  __Fn_void_Context_p_Point_p_void_p renderer;
+};
+
+struct Context {
+  __Slice_uint8_t buffer;
+  PixelFormat format;
+  Rect viewpoint;
 };
 
 struct Canvas {
@@ -219,9 +213,22 @@ struct Text {
   bool _wrap;
 };
 
+struct Graphics {
+  Driver* _driver;
+  Node* _root;
+  uint16_t _background;
+  bool _dirty_render;
+  Rect _render_window;
+  __Slice_uint8_t _strip0;
+  __Slice_uint8_t _strip1;
+  bool _single_buffer;
+  int32_t _front_buffer;
+  Context _context;
+};
+
 void main__main(void);
 Canvas* node__canvas__create_canvas(Allocator* allocator, Rect* bound, int32_t background, IndexFormat index_format, __Slice_uint16_t palette);
-void node__canvas__render_canvas(RenderContext* context, Point* offset, void* handle);
+void node__canvas__render_canvas(Context* context, Point* offset, void* handle);
 Node* Canvas_get_node(Canvas* this);
 static inline void Canvas_draw_pixel(Canvas* this, int32_t x, int32_t y, int32_t color_index);
 static inline void Canvas_draw_hline(Canvas* this, int32_t x, int32_t y, int32_t width, int32_t color_index);
@@ -237,32 +244,32 @@ void Canvas_fill_triangle(Canvas* this, int32_t x0, int32_t y0, int32_t x1, int3
 void Canvas_draw_round_rect(Canvas* this, int32_t x, int32_t y, int32_t width, int32_t height, int32_t r, int32_t color_index);
 void Canvas_fill_round_rect(Canvas* this, int32_t x, int32_t y, int32_t width, int32_t height, int32_t r, int32_t color);
 static void Canvas__init(Canvas* this, Allocator* allocator, Rect* bound, int32_t background, IndexFormat index_format, __Slice_uint16_t palette);
-static inline void Canvas__render(Canvas* this, RenderContext* context, Rect* rect, Point* offset);
+static inline void Canvas__render(Canvas* this, Context* context, Rect* rect, Point* offset);
 static void Canvas__fill_rect(Canvas* this, int32_t x, int32_t y, int32_t width, int32_t height, int32_t color);
 static void Canvas__circle_8(Canvas* this, int32_t cx, int32_t cy, int32_t x, int32_t y, int32_t color);
 static void Canvas__set_pixel_index1(Canvas* this, int32_t x, int32_t y, int32_t color);
 static void Canvas__set_pixel_index2(Canvas* this, int32_t x, int32_t y, int32_t color);
 static void Canvas__set_pixel_index4(Canvas* this, int32_t x, int32_t y, int32_t color);
 static void Canvas__set_pixel_index8(Canvas* this, int32_t x, int32_t y, int32_t color_index);
-static void Canvas__render_index1(Canvas* this, RenderContext* context, Rect* viewpoint, Point* offset);
-static void Canvas__render_index2(Canvas* this, RenderContext* context, Rect* viewpoint, Point* offset);
-static void Canvas__render_index4(Canvas* this, RenderContext* context, Rect* viewpoint, Point* offset);
-static void Canvas__render_index8(Canvas* this, RenderContext* context, Rect* viewpoint, Point* offset);
+static void Canvas__render_index1(Canvas* this, Context* context, Rect* viewpoint, Point* offset);
+static void Canvas__render_index2(Canvas* this, Context* context, Rect* viewpoint, Point* offset);
+static void Canvas__render_index4(Canvas* this, Context* context, Rect* viewpoint, Point* offset);
+static void Canvas__render_index8(Canvas* this, Context* context, Rect* viewpoint, Point* offset);
 static inline int32_t Canvas__abs(Canvas* this, int32_t v);
 static inline int32_t Canvas__sign(Canvas* this, int32_t v);
 static inline int32_t Canvas__sqrt(Canvas* this, int32_t n);
 Container* node__container__create_container(Allocator* allocator, Rect* bound, int32_t capacity, bool clip_content);
-void node__container__render_container(RenderContext* context, Point* offset, void* handle);
+void node__container__render_container(Context* context, Point* offset, void* handle);
 Node* Container_get_node(Container* this);
 bool Container_add(Container* this, Node* node);
 static void Container__init(Container* this, Allocator* allocator, Rect* bound, int32_t capacity, bool clip_content);
 Bitmap* node__bitmap__create_bitmap_from_image(Allocator* allocator, Point* point, Image* image);
 Bitmap* node__bitmap__create_bitmap_from_sprite_sheet(Allocator* allocator, Point* point, SpriteSheet* sheet, int32_t id);
-void node__bitmap__render_bitmap(RenderContext* context, Point* offset, void* handle);
+void node__bitmap__render_bitmap(Context* context, Point* offset, void* handle);
 Node* Bitmap_get_node(Bitmap* this);
 static void Bitmap__init(Bitmap* this, Rect* rect, __Slice_uint8_t data, IndexFormat index_format, __Slice_uint16_t palette);
 Text* node__text__create_text(Allocator* allocator, Rect* bound, __Slice_uint8_t text, uint16_t color, bool wrap, Font* font);
-void node__text__render_text(RenderContext* context, Point* offset, void* handle);
+void node__text__render_text(Context* context, Point* offset, void* handle);
 Node* Text_get_node(Text* this);
 static void Text__init(Text* this, Rect* bound, __Slice_uint8_t text, uint16_t color, bool wrap, Font* font);
 static inline int32_t SpriteSheet_sprite_width(SpriteSheet* this);
@@ -283,6 +290,21 @@ void Graphics_render(Graphics* this);
 static __Slice_uint8_t Graphics__front_strip(Graphics* this);
 static __Slice_uint8_t Graphics__back_strip(Graphics* this);
 static void Graphics__clear_strip(Graphics* this, __Slice_uint8_t buffer);
+static inline bool Context_intersect(Context* this, Rect* rect);
+static inline void Context_set_pixel(Context* this, Point* point, uint16_t color);
+static inline void Context_fill_rect(Context* this, Rect* rect, uint16_t color);
+static inline void Context_draw_hline(Context* this, Point* point, int32_t width, uint16_t color);
+static inline void Context_draw_vline(Context* this, Point* point, int32_t height, uint16_t color);
+static inline void Context_draw_rect(Context* this, Rect* rect, uint16_t color);
+void Context_fill_round_rect(Context* this, Rect* rect, int32_t radius, uint16_t color);
+void Context_draw_round_rect(Context* this, Rect* rect, int32_t radius, uint16_t color);
+void Context_draw_bitmap(Context* this, Rect* rect, __Slice_uint8_t data, IndexFormat index_format, __Slice_uint16_t palette);
+static void Context__render_bitmap_index1(Context* this, Rect* origin, Rect* clipped, __Slice_uint8_t data, __Slice_uint16_t palette);
+static void Context__render_bitmap_index2(Context* this, Rect* origin, Rect* clipped, __Slice_uint8_t data, __Slice_uint16_t palette);
+static void Context__render_bitmap_index4(Context* this, Rect* origin, Rect* clipped, __Slice_uint8_t data, __Slice_uint16_t palette);
+static void Context__render_bitmap_index8(Context* this, Rect* origin, Rect* clipped, __Slice_uint8_t data, __Slice_uint16_t palette);
+static inline void Context__set_pixel_mono(Context* this, Point* point, uint16_t color);
+static inline void Context__set_pixel_rgb565(Context* this, Point* point, uint16_t color);
 static inline int32_t math__floor_q16(int32_t value);
 static inline int32_t math__ceil_q16(int32_t value);
 static inline int32_t math__round_q16(int32_t value);
@@ -336,7 +358,7 @@ Canvas* node__canvas__create_canvas(Allocator* allocator, Rect* bound, int32_t b
   return canvas;
 }
 
-void node__canvas__render_canvas(RenderContext* context, Point* offset, void* handle) {
+void node__canvas__render_canvas(Context* context, Point* offset, void* handle) {
   Canvas* canvas = ((Canvas*)(handle));
   Rect clipped = {0};
   if ((!Rect_clip((&canvas->_node.bound), (&clipped), (&context->viewpoint), offset))) {
@@ -569,7 +591,7 @@ static void Canvas__init(Canvas* this, Allocator* allocator, Rect* bound, int32_
   (this->_node.renderer = node__canvas__render_canvas);
 }
 
-static inline void Canvas__render(Canvas* this, RenderContext* context, Rect* rect, Point* offset) {
+static inline void Canvas__render(Canvas* this, Context* context, Rect* rect, Point* offset) {
   switch (this->_index_format) {
     case IndexFormat_Index1: {
       Canvas__render_index1(this, context, rect, offset);
@@ -660,7 +682,7 @@ static void Canvas__set_pixel_index8(Canvas* this, int32_t x, int32_t y, int32_t
   (this->_buffer.ptr[((y * this->_node.bound.width) + x)] = ((uint8_t)(color_index)));
 }
 
-static void Canvas__render_index1(Canvas* this, RenderContext* context, Rect* viewpoint, Point* offset) {
+static void Canvas__render_index1(Canvas* this, Context* context, Rect* viewpoint, Point* offset) {
   int32_t origin_x = (offset->x + this->_node.bound.x);
   int32_t origin_y = (offset->y + this->_node.bound.y);
   Point point = {0};
@@ -676,13 +698,13 @@ static void Canvas__render_index1(Canvas* this, RenderContext* context, Rect* vi
       }
       if ((color != palette__TRANSPARENT)) {
         (point.x = x);
-        RenderContext_set_pixel(context, (&point), color);
+        Context_set_pixel(context, (&point), color);
       }
     }
   }
 }
 
-static void Canvas__render_index2(Canvas* this, RenderContext* context, Rect* viewpoint, Point* offset) {
+static void Canvas__render_index2(Canvas* this, Context* context, Rect* viewpoint, Point* offset) {
   int32_t origin_x = (offset->x + this->_node.bound.x);
   int32_t origin_y = (offset->y + this->_node.bound.y);
   Point point = {0};
@@ -696,13 +718,13 @@ static void Canvas__render_index2(Canvas* this, RenderContext* context, Rect* vi
       uint16_t color = this->_palette.ptr[((((int32_t)(this->_buffer.ptr[index])) >> shift) & 0x03)];
       if ((color != palette__TRANSPARENT)) {
         (point.x = x);
-        RenderContext_set_pixel(context, (&point), color);
+        Context_set_pixel(context, (&point), color);
       }
     }
   }
 }
 
-static void Canvas__render_index4(Canvas* this, RenderContext* context, Rect* viewpoint, Point* offset) {
+static void Canvas__render_index4(Canvas* this, Context* context, Rect* viewpoint, Point* offset) {
   int32_t origin_x = (offset->x + this->_node.bound.x);
   int32_t origin_y = (offset->y + this->_node.bound.y);
   Point point = {0};
@@ -719,13 +741,13 @@ static void Canvas__render_index4(Canvas* this, RenderContext* context, Rect* vi
       uint16_t color = this->_palette.ptr[palette_index];
       if ((color != palette__TRANSPARENT)) {
         (point.x = x);
-        RenderContext_set_pixel(context, (&point), color);
+        Context_set_pixel(context, (&point), color);
       }
     }
   }
 }
 
-static void Canvas__render_index8(Canvas* this, RenderContext* context, Rect* viewpoint, Point* offset) {
+static void Canvas__render_index8(Canvas* this, Context* context, Rect* viewpoint, Point* offset) {
   int32_t origin_x = (offset->x + this->_node.bound.x);
   int32_t origin_y = (offset->y + this->_node.bound.y);
   Point point = {0};
@@ -737,7 +759,7 @@ static void Canvas__render_index8(Canvas* this, RenderContext* context, Rect* vi
       uint16_t color = this->_palette.ptr[this->_buffer.ptr[((ly * this->_node.bound.width) + lx)]];
       if ((color != palette__TRANSPARENT)) {
         (point.x = x);
-        RenderContext_set_pixel(context, (&point), color);
+        Context_set_pixel(context, (&point), color);
       }
     }
   }
@@ -779,7 +801,7 @@ Container* node__container__create_container(Allocator* allocator, Rect* bound, 
   return container;
 }
 
-void node__container__render_container(RenderContext* context, Point* offset, void* handle) {
+void node__container__render_container(Context* context, Point* offset, void* handle) {
   Container* container = ((Container*)(handle));
   Point child_offset = {0};
   (child_offset.x = (offset->x + container->_node.bound.x));
@@ -791,14 +813,14 @@ void node__container__render_container(RenderContext* context, Point* offset, vo
     if ((!Rect_clip((&container->_node.bound), (&clipped), (&context->viewpoint), offset))) {
       return;
     }
-    context->viewpoint.copy((&clipped));
+    Rect_copy((&context->viewpoint), (&clipped));
   }
   for (int32_t index = 0; index < ArrayList_Node_p_size((&container->_children)); index++) {
     Node* child = ArrayList_Node_p_get((&container->_children), index);
     child->renderer(context, (&child_offset), child->handle);
   }
   if (container->_clip_content) {
-    context->viewpoint.copy((&saved));
+    Rect_copy((&context->viewpoint), (&saved));
   }
 }
 
@@ -842,14 +864,14 @@ Bitmap* node__bitmap__create_bitmap_from_sprite_sheet(Allocator* allocator, Poin
   return bitmap;
 }
 
-void node__bitmap__render_bitmap(RenderContext* context, Point* offset, void* handle) {
+void node__bitmap__render_bitmap(Context* context, Point* offset, void* handle) {
   Bitmap* bitmap = ((Bitmap*)(handle));
   Rect rect = {0};
   (rect.x = (offset->x + bitmap->_node.bound.x));
   (rect.y = (offset->y + bitmap->_node.bound.y));
   (rect.width = bitmap->_node.bound.width);
   (rect.height = bitmap->_node.bound.height);
-  RenderContext_draw_bitmap(context, (&rect), bitmap->_data, bitmap->_index_format, bitmap->_palette);
+  Context_draw_bitmap(context, (&rect), bitmap->_data, bitmap->_index_format, bitmap->_palette);
 }
 
 Node* Bitmap_get_node(Bitmap* this) {
@@ -871,7 +893,7 @@ Text* node__text__create_text(Allocator* allocator, Rect* bound, __Slice_uint8_t
   return t;
 }
 
-void node__text__render_text(RenderContext* context, Point* offset, void* handle) {
+void node__text__render_text(Context* context, Point* offset, void* handle) {
   Text* t = ((Text*)(handle));
   Font* font = t->_font;
   (font->sheet->palette.ptr[1] = t->_color);
@@ -899,7 +921,7 @@ void node__text__render_text(RenderContext* context, Point* offset, void* handle
       int32_t data_length = SpriteSheet_sprite_data_length(font->sheet, id);
       (glyph_rect.x = cursor.x);
       (glyph_rect.y = cursor.y);
-      RenderContext_draw_bitmap(context, (&glyph_rect), (__Slice_uint8_t){(&font->sheet->data.ptr[data_offset]), data_length}, font->sheet->index_format, font->sheet->palette);
+      Context_draw_bitmap(context, (&glyph_rect), (__Slice_uint8_t){(&font->sheet->data.ptr[data_offset]), data_length}, font->sheet->index_format, font->sheet->palette);
     }
     (cursor.x += font->advance_x);
   }
@@ -1073,7 +1095,7 @@ void Graphics_render(Graphics* this) {
   } else {
     (row_bytes = (this->_context.viewpoint.width * 2));
   }
-  int32_t strip_rows = (((this->_context.buffer.size() + row_bytes) - 1) / row_bytes);
+  int32_t strip_rows = (((this->_context.buffer.size + row_bytes) - 1) / row_bytes);
   int32_t strip_count = (((this->_render_window.height + strip_rows) - 1) / strip_rows);
   Point offset = (Point){.x = 0, .y = 0};
   for (int32_t strip_index = 0; strip_index < strip_count; strip_index++) {
@@ -1128,6 +1150,281 @@ static void Graphics__clear_strip(Graphics* this, __Slice_uint8_t buffer) {
       }
     }
   }
+}
+
+static inline bool Context_intersect(Context* this, Rect* rect) {
+  return Rect_intersect((&this->viewpoint), rect);
+}
+
+static inline void Context_set_pixel(Context* this, Point* point, uint16_t color) {
+  if ((!Rect_contains((&this->viewpoint), point))) {
+    return;
+  }
+  if ((this->format == PixelFormat_Mono)) {
+    Context__set_pixel_mono(this, point, color);
+  } else {
+    Context__set_pixel_rgb565(this, point, color);
+  }
+}
+
+static inline void Context_fill_rect(Context* this, Rect* rect, uint16_t color) {
+  Rect clipped = {0};
+  Point zero = {0};
+  (zero.x = 0);
+  (zero.y = 0);
+  if ((!Rect_clip(rect, (&clipped), (&this->viewpoint), (&zero)))) {
+    return;
+  }
+  Point point = {0};
+  for (int32_t y = clipped.y; y < (clipped.y + clipped.height); y++) {
+    for (int32_t x = clipped.x; x < (clipped.x + clipped.width); x++) {
+      (point.x = x);
+      (point.y = y);
+      if ((this->format == PixelFormat_Mono)) {
+        Context__set_pixel_mono(this, (&point), color);
+      } else {
+        Context__set_pixel_rgb565(this, (&point), color);
+      }
+    }
+  }
+}
+
+static inline void Context_draw_hline(Context* this, Point* point, int32_t width, uint16_t color) {
+  Rect rect = {0};
+  (rect.x = point->x);
+  (rect.y = point->y);
+  (rect.width = width);
+  (rect.height = 1);
+  Context_fill_rect(this, (&rect), color);
+}
+
+static inline void Context_draw_vline(Context* this, Point* point, int32_t height, uint16_t color) {
+  Rect rect = {0};
+  (rect.x = point->x);
+  (rect.y = point->y);
+  (rect.width = 1);
+  (rect.height = height);
+  Context_fill_rect(this, (&rect), color);
+}
+
+static inline void Context_draw_rect(Context* this, Rect* rect, uint16_t color) {
+  Point point = {0};
+  (point.x = rect->x);
+  (point.y = rect->y);
+  Context_draw_hline(this, (&point), rect->width, color);
+  (point.y = ((rect->y + rect->height) - 1));
+  Context_draw_hline(this, (&point), rect->width, color);
+  (point.y = (rect->y + 1));
+  Context_draw_vline(this, (&point), (rect->height - 2), color);
+  (point.x = ((rect->x + rect->width) - 1));
+  Context_draw_vline(this, (&point), (rect->height - 2), color);
+}
+
+void Context_fill_round_rect(Context* this, Rect* rect, int32_t radius, uint16_t color) {
+  if ((!Rect_intersect((&this->viewpoint), rect))) {
+    return;
+  }
+  int32_t r = radius;
+  Rect center = {0};
+  (center.x = (rect->x + r));
+  (center.y = rect->y);
+  (center.width = (rect->width - (2 * r)));
+  (center.height = rect->height);
+  Context_fill_rect(this, (&center), color);
+  int32_t px = 0;
+  int32_t py = r;
+  int32_t d = (1 - r);
+  Point point = {0};
+  while ((px <= py)) {
+    (point.x = ((rect->x + r) - py));
+    (point.y = ((rect->y + r) - px));
+    Context_draw_hline(this, (&point), ((py * 2) - 1), color);
+    (point.y = ((((rect->y + rect->height) - r) + px) - 1));
+    Context_draw_hline(this, (&point), ((py * 2) - 1), color);
+    (point.x = ((rect->x + r) - px));
+    (point.y = ((rect->y + r) - py));
+    Context_draw_hline(this, (&point), ((px * 2) - 1), color);
+    (point.y = ((((rect->y + rect->height) - r) + py) - 1));
+    Context_draw_hline(this, (&point), ((px * 2) - 1), color);
+    if ((d < 0)) {
+      (d += ((2 * px) + 3));
+    } else {
+      (d += ((2 * (px - py)) + 5));
+      (py -= 1);
+    }
+    (px += 1);
+  }
+}
+
+void Context_draw_round_rect(Context* this, Rect* rect, int32_t radius, uint16_t color) {
+  if ((!Rect_intersect((&this->viewpoint), rect))) {
+    return;
+  }
+  int32_t r = radius;
+  Point point = {0};
+  (point.x = (rect->x + r));
+  (point.y = rect->y);
+  Context_draw_hline(this, (&point), (rect->width - (2 * r)), color);
+  (point.y = ((rect->y + rect->height) - 1));
+  Context_draw_hline(this, (&point), (rect->width - (2 * r)), color);
+  (point.x = rect->x);
+  (point.y = (rect->y + r));
+  Context_draw_vline(this, (&point), (rect->height - (2 * r)), color);
+  (point.x = ((rect->x + rect->width) - 1));
+  Context_draw_vline(this, (&point), (rect->height - (2 * r)), color);
+  int32_t px = 0;
+  int32_t py = r;
+  int32_t d = (1 - r);
+  while ((px <= py)) {
+    (point.x = ((((rect->x + rect->width) - 1) - r) + py));
+    (point.y = ((rect->y + r) - px));
+    Context_set_pixel(this, (&point), color);
+    (point.x = ((rect->x + r) - py));
+    (point.y = ((rect->y + r) - px));
+    Context_set_pixel(this, (&point), color);
+    (point.x = ((((rect->x + rect->width) - 1) - r) + py));
+    (point.y = ((((rect->y + rect->height) - 1) - r) + px));
+    Context_set_pixel(this, (&point), color);
+    (point.x = ((rect->x + r) - py));
+    (point.y = ((((rect->y + rect->height) - 1) - r) + px));
+    Context_set_pixel(this, (&point), color);
+    (point.x = ((((rect->x + rect->width) - 1) - r) + px));
+    (point.y = ((rect->y + r) - py));
+    Context_set_pixel(this, (&point), color);
+    (point.x = ((rect->x + r) - px));
+    (point.y = ((rect->y + r) - py));
+    Context_set_pixel(this, (&point), color);
+    (point.x = ((((rect->x + rect->width) - 1) - r) + px));
+    (point.y = ((((rect->y + rect->height) - 1) - r) + py));
+    Context_set_pixel(this, (&point), color);
+    (point.x = ((rect->x + r) - px));
+    (point.y = ((((rect->y + rect->height) - 1) - r) + py));
+    Context_set_pixel(this, (&point), color);
+    if ((d < 0)) {
+      (d += ((2 * px) + 3));
+    } else {
+      (d += ((2 * (px - py)) + 5));
+      (py -= 1);
+    }
+    (px += 1);
+  }
+}
+
+void Context_draw_bitmap(Context* this, Rect* rect, __Slice_uint8_t data, IndexFormat index_format, __Slice_uint16_t palette) {
+  Rect clipped = {0};
+  Point zero = {0};
+  (zero.x = 0);
+  (zero.y = 0);
+  if ((!Rect_clip(rect, (&clipped), (&this->viewpoint), (&zero)))) {
+    return;
+  }
+  if ((index_format == IndexFormat_Index1)) {
+    Context__render_bitmap_index1(this, rect, (&clipped), data, palette);
+  }
+  if ((index_format == IndexFormat_Index2)) {
+    Context__render_bitmap_index2(this, rect, (&clipped), data, palette);
+  }
+  if ((index_format == IndexFormat_Index4)) {
+    Context__render_bitmap_index4(this, rect, (&clipped), data, palette);
+  }
+  if ((index_format == IndexFormat_Index8)) {
+    Context__render_bitmap_index8(this, rect, (&clipped), data, palette);
+  }
+}
+
+static void Context__render_bitmap_index1(Context* this, Rect* origin, Rect* clipped, __Slice_uint8_t data, __Slice_uint16_t palette) {
+  int32_t row_bytes = ((origin->width + 7) / 8);
+  Point point = {0};
+  for (int32_t sy = clipped->y; sy < (clipped->y + clipped->height); sy++) {
+    int32_t ly = (sy - origin->y);
+    (point.y = sy);
+    for (int32_t sx = clipped->x; sx < (clipped->x + clipped->width); sx++) {
+      int32_t lx = (sx - origin->x);
+      int32_t index = ((ly * row_bytes) + (lx / 8));
+      int32_t p = 0;
+      if (((data.ptr[index] & ((uint8_t)((0x80 >> (lx & 7))))) != 0)) {
+        (p = 1);
+      }
+      uint16_t color = palette.ptr[p];
+      if ((color != palette__TRANSPARENT)) {
+        (point.x = sx);
+        Context_set_pixel(this, (&point), color);
+      }
+    }
+  }
+}
+
+static void Context__render_bitmap_index2(Context* this, Rect* origin, Rect* clipped, __Slice_uint8_t data, __Slice_uint16_t palette) {
+  int32_t row_bytes = ((origin->width + 3) / 4);
+  Point point = {0};
+  for (int32_t sy = clipped->y; sy < (clipped->y + clipped->height); sy++) {
+    int32_t ly = (sy - origin->y);
+    (point.y = sy);
+    for (int32_t sx = clipped->x; sx < (clipped->x + clipped->width); sx++) {
+      int32_t lx = (sx - origin->x);
+      int32_t index = ((ly * row_bytes) + (lx / 4));
+      int32_t shift = ((3 - (lx & 3)) * 2);
+      int32_t p = ((((int32_t)(data.ptr[index])) >> shift) & 0x03);
+      uint16_t color = palette.ptr[p];
+      if ((color != palette__TRANSPARENT)) {
+        (point.x = sx);
+        Context_set_pixel(this, (&point), color);
+      }
+    }
+  }
+}
+
+static void Context__render_bitmap_index4(Context* this, Rect* origin, Rect* clipped, __Slice_uint8_t data, __Slice_uint16_t palette) {
+  int32_t row_bytes = ((origin->width + 1) / 2);
+  Point point = {0};
+  for (int32_t sy = clipped->y; sy < (clipped->y + clipped->height); sy++) {
+    int32_t ly = (sy - origin->y);
+    (point.y = sy);
+    for (int32_t sx = clipped->x; sx < (clipped->x + clipped->width); sx++) {
+      int32_t lx = (sx - origin->x);
+      int32_t index = ((ly * row_bytes) + (lx / 2));
+      int32_t p = (((int32_t)(data.ptr[index])) & 0x0F);
+      if (((lx & 1) == 0)) {
+        (p = ((((int32_t)(data.ptr[index])) >> 4) & 0x0F));
+      }
+      uint16_t color = palette.ptr[p];
+      if ((color != palette__TRANSPARENT)) {
+        (point.x = sx);
+        Context_set_pixel(this, (&point), color);
+      }
+    }
+  }
+}
+
+static void Context__render_bitmap_index8(Context* this, Rect* origin, Rect* clipped, __Slice_uint8_t data, __Slice_uint16_t palette) {
+  Point point = {0};
+  for (int32_t sy = clipped->y; sy < (clipped->y + clipped->height); sy++) {
+    int32_t ly = (sy - origin->y);
+    (point.y = sy);
+    for (int32_t sx = clipped->x; sx < (clipped->x + clipped->width); sx++) {
+      int32_t lx = (sx - origin->x);
+      uint16_t color = palette.ptr[data.ptr[((ly * origin->width) + lx)]];
+      if ((color != palette__TRANSPARENT)) {
+        (point.x = sx);
+        Context_set_pixel(this, (&point), color);
+      }
+    }
+  }
+}
+
+static inline void Context__set_pixel_mono(Context* this, Point* point, uint16_t color) {
+  int32_t index = ((point->y * ((this->viewpoint.width + 7) / 8)) + (point->x / 8));
+  if ((color == 0)) {
+    (this->buffer.ptr[index] = (this->buffer.ptr[index] & ((uint8_t)((~(0x80 >> (point->x & 7)))))));
+  } else {
+    (this->buffer.ptr[index] = (this->buffer.ptr[index] | ((uint8_t)((0x80 >> (point->x & 7))))));
+  }
+}
+
+static inline void Context__set_pixel_rgb565(Context* this, Point* point, uint16_t color) {
+  int32_t index = (((point->y * this->viewpoint.width) + point->x) * 2);
+  (this->buffer.ptr[index] = ((uint8_t)((color >> 8))));
+  (this->buffer.ptr[(index + 1)] = ((uint8_t)(color)));
 }
 
 static inline int32_t math__floor_q16(int32_t value) {

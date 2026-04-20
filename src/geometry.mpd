@@ -1,4 +1,3 @@
-import point::Point
 import math::min
 import math::max
 

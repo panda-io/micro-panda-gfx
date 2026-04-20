@@ -13,7 +13,7 @@ import math::max
 import format::*
 import node::*
 import geometry::*
-import render_context::RenderContext
+import context::Context
 import memory::memory_zero
 import memory::memory_set
 
@@ -43,7 +43,7 @@ class Graphics
     var _strip1:        byte[]                 // empty = single-buffer mode
     var _single_buffer: bool                 // true if buffer1 is empty
     var _front_buffer:  int                  // 0 or 1: which buffer is currently in-flight
-    var _context:       RenderContext        // reusable context for render calls; updated with each strip's win_y
+    var _context:       Context        // reusable context for render calls; updated with each strip's win_y
 
     // ── public API ────────────────────────────────────────────────────────────
 

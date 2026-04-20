@@ -1,6 +1,6 @@
 import format::IndexFormat
 import geometry::*
-import render_context::RenderContext
+import context::Context
 import palette::TRANSPARENT
 import math::*
 import node::Node
@@ -14,7 +14,7 @@ fun create_canvas(allocator: &Allocator, bound: &Rect, background: int, index_fo
     canvas._init(allocator, bound, background, index_format, palette)
     return canvas
 
-fun render_canvas(context: &RenderContext, offset: &Point, handle: &void)
+fun render_canvas(context: &Context, offset: &Point, handle: &void)
     val canvas: &Canvas = &Canvas(handle)
     val clipped: Rect
     if !canvas._node.bound.clip(&clipped, &context.viewpoint, offset)
@@ -214,7 +214,7 @@ class Canvas
         _node.renderer = render_canvas
 
     @inline
-    fun _render(context: &RenderContext, rect: &Rect, offset: &Point)
+    fun _render(context: &Context, rect: &Rect, offset: &Point)
         match _index_format
             IndexFormat.Index1:
                 _render_index1(context, rect, offset)
@@ -286,7 +286,7 @@ class Canvas
     // ── per-format strip renderers ────────────────────────────────────────────
     // viewpoint: clipped screen-space rect to render (intersection already computed by render_canvas).
     // lx/ly = 0-based canvas-local coords.
-    fun _render_index1(context: &RenderContext, viewpoint: &Rect, offset: &Point)
+    fun _render_index1(context: &Context, viewpoint: &Rect, offset: &Point)
         val origin_x := offset.x + _node.bound.x
         val origin_y := offset.y + _node.bound.y
         val point: Point
@@ -303,7 +303,7 @@ class Canvas
                     point.x = x
                     context.set_pixel(&point, color)
 
-    fun _render_index2(context: &RenderContext, viewpoint: &Rect, offset: &Point)
+    fun _render_index2(context: &Context, viewpoint: &Rect, offset: &Point)
         val origin_x := offset.x + _node.bound.x
         val origin_y := offset.y + _node.bound.y
         val point: Point
@@ -319,7 +319,7 @@ class Canvas
                     point.x = x
                     context.set_pixel(&point, color)
 
-    fun _render_index4(context: &RenderContext, viewpoint: &Rect, offset: &Point)
+    fun _render_index4(context: &Context, viewpoint: &Rect, offset: &Point)
         val origin_x := offset.x + _node.bound.x
         val origin_y := offset.y + _node.bound.y
         val point: Point
@@ -337,7 +337,7 @@ class Canvas
                     point.x = x
                     context.set_pixel(&point, color)
 
-    fun _render_index8(context: &RenderContext, viewpoint: &Rect, offset: &Point)
+    fun _render_index8(context: &Context, viewpoint: &Rect, offset: &Point)
         val origin_x := offset.x + _node.bound.x
         val origin_y := offset.y + _node.bound.y
         val point: Point

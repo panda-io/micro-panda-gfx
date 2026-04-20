@@ -1,6 +1,6 @@
 import geometry::*
 import node::Node
-import render_context::RenderContext
+import context::Context
 import texture.sprite_sheet::SpriteSheet
 import texture.font::Font
 
@@ -9,7 +9,7 @@ fun create_text(allocator: &Allocator, bound: &Rect, text: byte[], color: u16, w
     t._init(bound, text, color, wrap, font)
     return t
 
-fun render_text(context: &RenderContext, offset: &Point, handle: &void)
+fun render_text(context: &Context, offset: &Point, handle: &void)
     var t: &Text = &Text(handle)
     var font: &Font = t._font
     font.sheet.palette[1] = t._color
