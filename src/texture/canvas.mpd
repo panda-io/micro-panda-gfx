@@ -9,54 +9,62 @@ fun create_canvas(allocator: &Allocator, width: int, height: int, background: in
     return canvas
 
 class Canvas
-    var _image:      &Image
+    var _image:      Image
     var _background: int
+    var _bound:      Rect
 
     fun get_image() &Image
-        return _image
+        return &_image
 
     @inline
-    fun draw_pixel(x: int, y: int, color_index: int)
+    fun draw_pixel(point: &Point, color_index: int)
         match _image.index_format
             IndexFormat.Index1:
-                _set_pixel_index1(x, y, color_index)
+                _set_pixel_index1(point, color_index)
             IndexFormat.Index2:
-                _set_pixel_index2(x, y, color_index)
+                _set_pixel_index2(point, color_index)
             IndexFormat.Index4:
-                _set_pixel_index4(x, y, color_index)
+                _set_pixel_index4(point, color_index)
             IndexFormat.Index8:
-                _set_pixel_index8(x, y, color_index)
+                _set_pixel_index8(point, color_index)
 
-    fun draw_rect(x: int, y: int, width: int, height: int, color_index: int)
-        fill_rect(x,             y,              width, 1,          color_index)
-        fill_rect(x,             y + height - 1, width, 1,          color_index)
-        fill_rect(x,             y + 1,          1,     height - 2, color_index)
-        fill_rect(x + width - 1, y + 1,          1,     height - 2, color_index)
+    fun draw_rect(rect: &Rect, color_index: int)
+        val line_rect: Rect
+        line_rect.x = rect.x
+        line_rect.y = rect.y
+        line_rect.width = rect.width
+        line_rect.height = 1
+        fill_rect(&line_rect, color_index)
+        line_rect.y = rect.y + rect.height - 1
+        fill_rect(&line_rect, color_index)
+        line_rect.y = rect.y + 1
+        line_rect.height = rect.height - 2
+        fill_rect(&line_rect, color_index)
+        line_rect.x = rect.x + rect.width - 1
+        fill_rect(&line_rect, color_index)
 
-    fun fill_rect(x: int, y: int, width: int, height: int, color_index: int)
-        if width <= 0 || height <= 0
+    fun fill_rect(rect: &Rect, color_index: int)
+        val clipped: Rect
+        val zero: Point
+        zero.x = 0
+        zero.y = 0
+        if !_bound.clip(&clipped, rect, &zero)
             return
-        val intersect := (x < _image.width && x + width > 0 &&
-                          y < _image.height && y + height > 0)
-        if !intersect
-            return
-        val start_x := max<int>(x, 0)
-        val start_y := max<int>(y, 0)
-        val end_x   := min<int>(x + width,  _image.width)
-        val end_y   := min<int>(y + height, _image.height)
-        for py in start_y..end_y
-            for px in start_x..end_x
-                draw_pixel(px, py, color_index)
+        val point: Point
+        for y in clipped.y..clipped.y + clipped.height
+            for x in clipped.x..clipped.x + clipped.width
+                point.x = x
+                point.y = y
+                draw_pixel(&point, color_index)
 
     fun clear()
-        fill_rect(0, 0, _image.width, _image.height, _background)
+        fill_rect(&_bound, _background)
 
     fun _init(allocator: &Allocator, width: int, height: int, background: int, index_format: IndexFormat, palette: u16[])
-        val image: &Image = allocator.allocate<Image>()
-        image.width        = width
-        image.height       = height
-        image.index_format = index_format
-        image.palette      = palette
+        _image.width        = width
+        _image.height       = height
+        _image.index_format = index_format
+        _image.palette      = palette
         var buffer_size: int = 0
         if index_format == IndexFormat.Index1
             buffer_size = ((width + 7) / 8) * height
@@ -67,36 +75,40 @@ class Canvas
         if index_format == IndexFormat.Index8
             buffer_size = width * height
         if buffer_size > 0
-            image.data = allocator.allocate_array<byte>(buffer_size)
-        _image      = image
+            _image.data = allocator.allocate_array<byte>(buffer_size)
         _background = background
+        _bound.x = 0
+        _bound.y = 0
+        _bound.width = width
+        _bound.height = height
 
-    fun _set_pixel_index1(x: int, y: int, color: int)
-        if x < 0 || y < 0 || x >= _image.width || y >= _image.height
+    fun _set_pixel_index1(point: &Point, color: int)
+        if !_bound.contains(point)
             return
-        val index: int = y * ((_image.width + 7) / 8) + x / 8
+        val index: int = point.y * ((_image.width + 7) / 8) + point.x / 8
         if (color & 1) != 0
-            _image.data[index] = _image.data[index] | byte(0x80 >> (x & 7))
+            _image.data[index] = _image.data[index] | byte(0x80 >> (point.x & 7))
         else
-            _image.data[index] = _image.data[index] & byte(~(0x80 >> (x & 7)))
+            _image.data[index] = _image.data[index] & byte(~(0x80 >> (point.x & 7)))
 
-    fun _set_pixel_index2(x: int, y: int, color: int)
-        if x < 0 || y < 0 || x >= _image.width || y >= _image.height
+    fun _set_pixel_index2(point: &Point, color: int)
+        if !_bound.contains(point)
             return
-        val index: int = y * ((_image.width + 3) / 4) + x / 4
-        val shift: int = (3 - (x & 3)) * 2
+        val index: int = point.y * ((_image.width + 3) / 4) + point.x / 4
+        val shift: int = (3 - (point.x & 3)) * 2
         _image.data[index] = (_image.data[index] & byte(~(0x03 << shift))) | byte((color & 0x03) << shift)
 
-    fun _set_pixel_index4(x: int, y: int, color: int)
-        if x < 0 || y < 0 || x >= _image.width || y >= _image.height
+    fun _set_pixel_index4(point: &Point, color: int)
+        if !_bound.contains(point)
             return
-        val index: int = y * ((_image.width + 1) / 2) + x / 2
-        if (x & 1) == 0
+        val index: int = point.y * ((_image.width + 1) / 2) + point.x / 2
+        if (point.x & 1) == 0
             _image.data[index] = (_image.data[index] & byte(0x0F)) | byte(color << 4)
         else
             _image.data[index] = (_image.data[index] & byte(0xF0)) | byte(color & 0x0F)
 
-    fun _set_pixel_index8(x: int, y: int, color_index: int)
-        if x < 0 || y < 0 || x >= _image.width || y >= _image.height
+    fun _set_pixel_index8(point: &Point, color_index: int)
+        if !_bound.contains(point)
             return
-        _image.data[y * _image.width + x] = byte(color_index)
+        val index: int = point.y * _image.width + point.x
+        _image.data[index] = byte(color_index)
