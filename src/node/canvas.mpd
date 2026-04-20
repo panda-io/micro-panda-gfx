@@ -52,7 +52,6 @@ class Canvas
         fill_rect(x,             y + 1,          1,     height - 2, color_index)
         fill_rect(x + width - 1, y + 1,          1,     height - 2, color_index)
 
-    @inline
     fun fill_rect(x: int, y: int, width: int, height: int, color_index: int)
         if width <= 0 || height <= 0
             return

@@ -30,7 +30,6 @@ class Context
         else
             _set_pixel_rgb565(point, color)
 
-    @inline
     fun draw_hline(point: &Point, width: int, color: u16)
         val rect: Rect
         rect.x = point.x
@@ -39,7 +38,6 @@ class Context
         rect.height = 1
         fill_rect(&rect, color)
 
-    @inline
     fun draw_vline(point: &Point, height: int, color: u16)
         val rect: Rect
         rect.x = point.x
@@ -48,7 +46,6 @@ class Context
         rect.height = height
         fill_rect(&rect, color)
 
-    @inline
     fun draw_rect(rect: &Rect, color: u16)
         var point: Point
         point.x = rect.x
@@ -61,7 +58,6 @@ class Context
         point.x = rect.x + rect.width - 1
         draw_vline(&point, rect.height - 2, color)
 
-    @inline
     fun fill_rect(rect: &Rect, color: u16)
         val clipped: Rect
         val zero: Point
