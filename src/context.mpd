@@ -22,31 +22,13 @@ class Context
         return viewpoint.intersect(rect)
 
     @inline
-    fun set_pixel(point: &Point, color: u16)
+    fun draw_pixel(point: &Point, color: u16)
         if !viewpoint.contains(point)
             return
         if format == PixelFormat.Mono
             _set_pixel_mono(point, color)
         else
             _set_pixel_rgb565(point, color)
-
-    @inline
-    fun fill_rect(rect: &Rect, color: u16)
-        val clipped: Rect
-        val zero: Point
-        zero.x = 0
-        zero.y = 0
-        if !rect.clip(&clipped, &viewpoint, &zero)
-            return
-        val point: Point
-        for y in clipped.y..clipped.y + clipped.height
-            for x in clipped.x..clipped.x + clipped.width
-                point.x = x
-                point.y = y
-                if format == PixelFormat.Mono
-                    _set_pixel_mono(&point, color)
-                else
-                    _set_pixel_rgb565(&point, color)
 
     @inline
     fun draw_hline(point: &Point, width: int, color: u16)
@@ -79,6 +61,82 @@ class Context
         point.x = rect.x + rect.width - 1
         draw_vline(&point, rect.height - 2, color)
 
+    @inline
+    fun fill_rect(rect: &Rect, color: u16)
+        val clipped: Rect
+        val zero: Point
+        zero.x = 0
+        zero.y = 0
+        if !rect.clip(&clipped, &viewpoint, &zero)
+            return
+        val point: Point
+        for y in clipped.y..clipped.y + clipped.height
+            for x in clipped.x..clipped.x + clipped.width
+                point.x = x
+                point.y = y
+                if format == PixelFormat.Mono
+                    _set_pixel_mono(&point, color)
+                else
+                    _set_pixel_rgb565(&point, color)
+
+    fun draw_round_rect(rect: &Rect, radius: int, color: u16)
+        if !viewpoint.intersect(rect)
+            return
+        val r: int = radius
+        var point: Point
+        point.x = rect.x + r
+        point.y = rect.y
+        draw_hline(&point, rect.width - 2 * r, color)
+        point.y = rect.y + rect.height - 1
+        draw_hline(&point, rect.width - 2 * r, color)
+        point.x = rect.x
+        point.y = rect.y + r
+        draw_vline(&point, rect.height - 2 * r, color)
+        point.x = rect.x + rect.width - 1
+        draw_vline(&point, rect.height - 2 * r, color)
+        var px: int = 0
+        var py: int = r
+        var d:  int = 1 - r
+        while px <= py
+            point.x = rect.x + rect.width - 1 - r + py
+            point.y = rect.y + r - px                      
+            draw_pixel(&point, color)
+
+            point.x = rect.x + r - py                   
+            point.y = rect.y + r - px                      
+            draw_pixel(&point, color)
+
+            point.x = rect.x + rect.width - 1 - r + py
+            point.y = rect.y + rect.height - 1 - r + px
+            draw_pixel(&point, color)
+
+            point.x = rect.x + r - py
+            point.y = rect.y + rect.height - 1 - r + px
+            draw_pixel(&point, color)
+
+            point.x = rect.x + rect.width - 1 - r + px
+            point.y = rect.y + r - py
+            draw_pixel(&point, color)
+
+            point.x = rect.x + r - px
+            point.y = rect.y + r - py
+            draw_pixel(&point, color)
+
+            point.x = rect.x + rect.width - 1 - r + px
+            point.y = rect.y + rect.height - 1 - r + py
+            draw_pixel(&point, color)
+
+            point.x = rect.x + r - px
+            point.y = rect.y + rect.height - 1 - r + py
+            draw_pixel(&point, color)
+
+            if d < 0
+                d += 2 * px + 3
+            else
+                d += 2 * (px - py) + 5
+                py -= 1
+            px += 1
+
     fun fill_round_rect(rect: &Rect, radius: int, color: u16)
         if !viewpoint.intersect(rect)
             return
@@ -104,64 +162,6 @@ class Context
             draw_hline(&point, px * 2 - 1, color)
             point.y = rect.y + rect.height - r + py - 1
             draw_hline(&point, px * 2 - 1, color)
-            if d < 0
-                d += 2 * px + 3
-            else
-                d += 2 * (px - py) + 5
-                py -= 1
-            px += 1
-
-    fun draw_round_rect(rect: &Rect, radius: int, color: u16)
-        if !viewpoint.intersect(rect)
-            return
-        val r: int = radius
-        var point: Point
-        point.x = rect.x + r
-        point.y = rect.y
-        draw_hline(&point, rect.width - 2 * r, color)
-        point.y = rect.y + rect.height - 1
-        draw_hline(&point, rect.width - 2 * r, color)
-        point.x = rect.x
-        point.y = rect.y + r
-        draw_vline(&point, rect.height - 2 * r, color)
-        point.x = rect.x + rect.width - 1
-        draw_vline(&point, rect.height - 2 * r, color)
-        var px: int = 0
-        var py: int = r
-        var d:  int = 1 - r
-        while px <= py
-            point.x = rect.x + rect.width - 1 - r + py
-            point.y = rect.y + r - px                      
-            set_pixel(&point, color)
-
-            point.x = rect.x + r - py                   
-            point.y = rect.y + r - px                      
-            set_pixel(&point, color)
-
-            point.x = rect.x + rect.width - 1 - r + py
-            point.y = rect.y + rect.height - 1 - r + px
-            set_pixel(&point, color)
-
-            point.x = rect.x + r - py
-            point.y = rect.y + rect.height - 1 - r + px
-            set_pixel(&point, color)
-
-            point.x = rect.x + rect.width - 1 - r + px
-            point.y = rect.y + r - py
-            set_pixel(&point, color)
-
-            point.x = rect.x + r - px
-            point.y = rect.y + r - py
-            set_pixel(&point, color)
-
-            point.x = rect.x + rect.width - 1 - r + px
-            point.y = rect.y + rect.height - 1 - r + py
-            set_pixel(&point, color)
-
-            point.x = rect.x + r - px
-            point.y = rect.y + rect.height - 1 - r + py
-            set_pixel(&point, color)
-
             if d < 0
                 d += 2 * px + 3
             else
@@ -200,7 +200,7 @@ class Context
                 val color: u16 = palette[p]
                 if color != TRANSPARENT
                     point.x = sx
-                    set_pixel(&point, color)
+                    draw_pixel(&point, color)
 
     fun _render_bitmap_index2(origin: &Rect, clipped: &Rect, data: byte[], palette: u16[])
         val row_bytes: int = (origin.width + 3) / 4
@@ -216,7 +216,7 @@ class Context
                 val color: u16 = palette[p]
                 if color != TRANSPARENT
                     point.x = sx
-                    set_pixel(&point, color)
+                    draw_pixel(&point, color)
 
     fun _render_bitmap_index4(origin: &Rect, clipped: &Rect, data: byte[], palette: u16[])
         val row_bytes: int = (origin.width + 1) / 2
@@ -233,7 +233,7 @@ class Context
                 val color: u16 = palette[p]
                 if color != TRANSPARENT
                     point.x = sx
-                    set_pixel(&point, color)
+                    draw_pixel(&point, color)
 
     fun _render_bitmap_index8(origin: &Rect, clipped: &Rect, data: byte[], palette: u16[])
         val point: Point
@@ -245,7 +245,7 @@ class Context
                 val color: u16 = palette[data[ly * origin.width + lx]]
                 if color != TRANSPARENT
                     point.x = sx
-                    set_pixel(&point, color)
+                    draw_pixel(&point, color)
 
     // ── private: format-specific pixel writers (strip-local coords) ───────────
 

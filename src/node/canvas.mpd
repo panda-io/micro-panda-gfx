@@ -46,153 +46,30 @@ class Canvas
             IndexFormat.Index8:
                 _set_pixel_index8(x, y, color_index)
 
-    @inline
-    fun draw_hline(x: int, y: int, width: int, color_index: int)
-        _fill_rect(x, y, width, 1, color_index)
-
-    @inline
-    fun draw_vline(x: int, y: int, height: int, color_index: int)
-        _fill_rect(x, y, 1, height, color_index)
-
-    fun draw_line(x0: int, y0: int, x1: int, y1: int, color_index: int)
-        var dx: int  = abs<int>(x1 - x0)
-        var dy: int  = abs<int>(y1 - y0)
-        var sx: int  = _sign(x1 - x0)
-        var sy: int  = _sign(y1 - y0)
-        var err: int = dx - dy
-        var cx: int  = x0
-        var cy: int  = y0
-        while true
-            draw_pixel(cx, cy, color_index)
-            if cx == x1 && cy == y1
-                return
-            val e2: int = err * 2
-            if e2 > -dy
-                err -= dy
-                cx  += sx
-            if e2 < dx
-                err += dx
-                cy  += sy
-
     fun draw_rect(x: int, y: int, width: int, height: int, color_index: int)
-        _fill_rect(x,             y,              width, 1,          color_index)
-        _fill_rect(x,             y + height - 1, width, 1,          color_index)
-        _fill_rect(x,             y + 1,          1,     height - 2, color_index)
-        _fill_rect(x + width - 1, y + 1,          1,     height - 2, color_index)
+        fill_rect(x,             y,              width, 1,          color_index)
+        fill_rect(x,             y + height - 1, width, 1,          color_index)
+        fill_rect(x,             y + 1,          1,     height - 2, color_index)
+        fill_rect(x + width - 1, y + 1,          1,     height - 2, color_index)
 
     @inline
     fun fill_rect(x: int, y: int, width: int, height: int, color_index: int)
-        _fill_rect(x, y, width, height, color_index)
+        if width <= 0 || height <= 0
+            return
+        val intersect := (x < _node.bound.width && x + width > 0 &&
+                          y < _node.bound.height && y + height > 0)
+        if !intersect
+            return
+        val start_x := max<int>(x, 0)
+        val start_y := max<int>(y, 0)
+        val end_x := min<int>(x + width, _node.bound.width)
+        val end_y := min<int>(y + height, _node.bound.height)
+        for py in start_y..end_y
+            for px in start_x..end_x
+                draw_pixel(px, py, color_index)
 
     fun clear()
-        _fill_rect(0, 0, _node.bound.width, _node.bound.height, _background)
-
-    fun draw_circle(cx: int, cy: int, r: int, color_index: int)
-        var x: int = 0
-        var y: int = r
-        var d: int = 1 - r
-        _circle_8(cx, cy, x, y, color_index)
-        while x < y
-            if d < 0
-                d += 2 * x + 3
-            else
-                d += 2 * (x - y) + 5
-                y -= 1
-            x += 1
-            _circle_8(cx, cy, x, y, color_index)
-
-    fun fill_circle(cx: int, cy: int, r: int, color_index: int)
-        for dy in -r..r + 1
-            val dx: int = _sqrt(r * r - dy * dy)
-            _fill_rect(cx - dx, cy + dy, dx * 2 + 1, 1, color_index)
-
-    fun draw_triangle(x0: int, y0: int, x1: int, y1: int, x2: int, y2: int, color_index: int)
-        draw_line(x0, y0, x1, y1, color_index)
-        draw_line(x1, y1, x2, y2, color_index)
-        draw_line(x2, y2, x0, y0, color_index)
-
-    fun fill_triangle(x0: int, y0: int, x1: int, y1: int, x2: int, y2: int, color_index: int)
-        // sort vertices by y: y0 <= y1 <= y2
-        var tx: int = 0
-        var ty: int = 0
-        if y1 < y0
-            tx = x0
-            ty = y0
-            x0 = x1
-            y0 = y1
-            x1 = tx
-            y1 = ty
-        if y2 < y0
-            tx = x0
-            ty = y0
-            x0 = x2
-            y0 = y2
-            x2 = tx
-            y2 = ty
-        if y2 < y1
-            tx = x1
-            ty = y1
-            x1 = x2
-            y1 = y2
-            x2 = tx
-            y2 = ty
-        for y in y0..y2 + 1
-            var xa: int = 0
-            var xb: int = 0
-            if y <= y1 && y1 != y0
-                xa = x0 + (y - y0) * (x1 - x0) / (y1 - y0)
-            else
-                xa = x1
-            if y2 != y0
-                xb = x0 + (y - y0) * (x2 - x0) / (y2 - y0)
-            else
-                xb = x0
-            if xa > xb
-                tx = xa
-                xa = xb
-                xb = tx
-            _fill_rect(xa, y, xb - xa + 1, 1, color_index)
-
-    fun draw_round_rect(x: int, y: int, width: int, height: int, r: int, color_index: int)
-        _fill_rect(x + r,         y,              width - 2 * r, 1,              color_index)
-        _fill_rect(x + r,         y + height - 1, width - 2 * r, 1,              color_index)
-        _fill_rect(x,             y + r,          1,             height - 2 * r, color_index)
-        _fill_rect(x + width - 1, y + r,          1,             height - 2 * r, color_index)
-        var px: int = 0
-        var py: int = r
-        var d: int  = 1 - r
-        while px <= py
-            draw_pixel(x + width - 1 - r + py, y + r - px,              color_index)
-            draw_pixel(x + r - py,             y + r - px,              color_index)
-            draw_pixel(x + width - 1 - r + py, y + height - 1 - r + px, color_index)
-            draw_pixel(x + r - py,             y + height - 1 - r + px, color_index)
-            draw_pixel(x + width - 1 - r + px, y + r - py,              color_index)
-            draw_pixel(x + r - px,             y + r - py,              color_index)
-            draw_pixel(x + width - 1 - r + px, y + height - 1 - r + py, color_index)
-            draw_pixel(x + r - px,             y + height - 1 - r + py, color_index)
-            if d < 0
-                d += 2 * px + 3
-            else
-                d += 2 * (px - py) + 5
-                py -= 1
-            px += 1
-
-    fun fill_round_rect(x: int, y: int, width: int, height: int, r: int, color: int)
-        _fill_rect(x + r, y, width - 2 * r, height, color)
-        var px: int = 0
-        var py: int = r
-        var d: int  = 1 - r
-        while px <= py
-            _fill_rect(x + width - 1 - r - py + 1, y + r - px,              py * 2 - 1, 1, color)
-            _fill_rect(x + width - 1 - r - py + 1, y + height - 1 - r + px, py * 2 - 1, 1, color)
-            _fill_rect(x + width - 1 - r - px + 1, y + r - py,              px * 2 - 1, 1, color)
-            _fill_rect(x + width - 1 - r - px + 1, y + height - 1 - r + py, px * 2 - 1, 1, color)
-            if d < 0
-                d += 2 * px + 3
-            else
-                d += 2 * (px - py) + 5
-                py -= 1
-            px += 1
+        fill_rect(0, 0, _node.bound.width, _node.bound.height, _background)
 
     // ── private helpers ────────────────────────────────────────────────────────
     fun _init(allocator: &Allocator, bound: &Rect, background: int, index_format: IndexFormat, palette: u16[])
@@ -214,34 +91,7 @@ class Canvas
         _node.handle = &void(this)
         _node.renderer = render_canvas
 
-    // Fill a rectangle — clips to canvas bounds, relative coords.
-    fun _fill_rect(x: int, y: int, width: int, height: int, color: int)
-        if width <= 0 || height <= 0
-            return
-        val intersect := (x < _node.bound.width && x + width > 0 &&
-                          y < _node.bound.height && y + height > 0)
-        if !intersect
-            return
-        val start_x := max<int>(x, 0)
-        val start_y := max<int>(y, 0)
-        val end_x := min<int>(x + width, _node.bound.width)
-        val end_y := min<int>(y + height, _node.bound.height)
-        for py in start_y..end_y
-            for px in start_x..end_x
-                draw_pixel(px, py, color)
-
-    fun _circle_8(cx: int, cy: int, x: int, y: int, color: int)
-        draw_pixel(cx + x, cy + y, color)
-        draw_pixel(cx - x, cy + y, color)
-        draw_pixel(cx + x, cy - y, color)
-        draw_pixel(cx - x, cy - y, color)
-        draw_pixel(cx + y, cy + x, color)
-        draw_pixel(cx - y, cy + x, color)
-        draw_pixel(cx + y, cy - x, color)
-        draw_pixel(cx - y, cy - x, color)
-
     // ── per-format pixel writers (canvas-absolute coords, bounds-checked) ─────
-
     fun _set_pixel_index1(x: int, y: int, color: int)
         if x < 0 || y < 0 || x >= _node.bound.width || y >= _node.bound.height
             return
@@ -271,22 +121,3 @@ class Canvas
         if x < 0 || y < 0 || x >= _node.bound.width || y >= _node.bound.height
             return
         _buffer[y * _node.bound.width + x] = byte(color_index)
-
-    @inline
-    fun _sign(v: int) int
-        if v > 0
-            return 1
-        if v < 0
-            return -1
-        return 0
-
-    @inline
-    fun _sqrt(n: int) int
-        if n <= 0
-            return 0
-        var x: int = n
-        var y: int = (x + 1) / 2
-        while y < x
-            x = y
-            y = (x + n / x) / 2
-        return x
