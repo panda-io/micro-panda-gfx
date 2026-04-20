@@ -1,6 +1,7 @@
 import format::IndexFormat
 import geometry::*
 import node::Node
+import texture.canvas::Canvas
 import texture.image::Image
 import texture.sprite_sheet::SpriteSheet
 
@@ -24,6 +25,17 @@ fun create_bitmap_from_sprite_sheet(allocator: &Allocator, point: &Point, sheet:
     val offset: int = sheet.sprite_data_offset(id)
     val length: int = sheet.sprite_data_length(id)
     bitmap._init(&bound, { &sheet.data[offset], length}, sheet.index_format, sheet.palette)
+    return bitmap
+
+fun create_bitmap_from_canvas(allocator: &Allocator, point: &Point, canvas: &Canvas) &Bitmap
+    var bitmap: &Bitmap = allocator.allocate<Bitmap>()
+    val image: &Image = canvas.get_image()
+    var bound: Rect
+    bound.x      = point.x
+    bound.y      = point.y
+    bound.width  = image.width
+    bound.height = image.height
+    bitmap._init(&bound, image.data, image.index_format, image.palette)
     return bitmap
 
 fun render_bitmap(context: &Context, offset: &Point, handle: &void)

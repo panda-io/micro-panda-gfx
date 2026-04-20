@@ -1,4 +1,4 @@
-import node.canvas::*
+import texture.canvas::*
 import node.container::*
 import node.bitmap::*
 import node.text::*

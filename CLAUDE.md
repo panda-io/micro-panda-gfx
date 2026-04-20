@@ -10,7 +10,7 @@ Strip-buffer rendering pipeline with node-based scene tree.
 - **Strip buffer** — one or two `u8[]` buffers; double-buffer: CPU renders back while DMA sends front
 - **Rotation** — fully owned by driver (`set_rotation` configures MADCTL/segment remap); `Graphics` only tracks `view_w`/`view_h`
 - **Node tree** — `root: &Node`; each node renders itself into `RenderContext` (strip window clipping)
-- **Canvas** — indexed pixel buffer (Index1/2/4/8) + `u16[]` palette; palette-only, no direct RGB565 path
+- **Canvas** — mutable texture (Index1/2/4/8); wraps `Image` + background color; draw primitives write into `image.data`; use `create_bitmap_from_canvas` to attach to a node
 - **Transparent** — `TRANSPARENT: u16 = 0x0020` sentinel in `pixel_format.mpd`; renderers skip pixels whose palette entry equals this value
 
 ## Color
@@ -46,10 +46,10 @@ Companion enums: `MonoColor`, `Gray4Color`, `Gray16Color`, `UIColor`.
 | `src/palette.mpd` | Standard palettes + color index enums |
 | `src/context.mpd` | `Context` — strip draw API, window clipping, `intersect` |
 | `src/node.mpd` | `Node` base class |
-| `src/node/bitmap.mpd` | `Bitmap` node + `create_bitmap_from_image` / `create_bitmap_from_sprite_sheet` |
-| `src/node/canvas.mpd` | `Canvas` — indexed pixel buffer, all draw primitives |
+| `src/node/bitmap.mpd` | `Bitmap` node + `create_bitmap_from_image` / `create_bitmap_from_sprite_sheet` / `create_bitmap_from_canvas` |
 | `src/node/text.mpd` | `Text` node + `create_text` |
 | `src/node/container.mpd` | `Container` — hierarchical node composition |
+| `src/texture/canvas.mpd` | `Canvas` — mutable indexed pixel buffer with draw primitives; wraps `Image` |
 | `src/texture/image.mpd` | `Compress` enum + `Image` — single indexed-color bitmap asset |
 | `src/texture/sprite_sheet.mpd` | `SpriteSize` enum + `SpriteSheet` — fixed-size sprite collection |
 | `src/texture/font.mpd` | `Font` — monospaced bitmap font descriptor backed by `SpriteSheet` |
