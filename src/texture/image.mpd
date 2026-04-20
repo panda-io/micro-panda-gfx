@@ -1,0 +1,18 @@
+import format::IndexFormat
+
+enum Compress
+    None = 0
+    RLE  = 1
+
+// Image — single indexed-color bitmap with arbitrary dimensions.
+//
+// Memory placement:
+//   data    → const → flash (read-only asset data)
+//   palette → val   → RAM  (hot-path palette access)
+class Image
+    var data:         byte[]
+    var palette:      u16[]
+    var width:        int
+    var height:       int
+    var index_format: IndexFormat
+    var compress:     Compress

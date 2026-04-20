@@ -1,12 +1,17 @@
-import canvas::*
-import container::*
+import node.canvas::*
+import node.container::*
+import node.bitmap::*
+import node.text::*
+import texture.image::*
+import texture.sprite_sheet::*
+import texture.font::*
 import display::*
+import format::*
 import geometry::*
 import graphics::*
 import node::*
 import palette::*
 import render_context::*
-import sprite_sheet::*
 
 // do nothing, just test that the file is parsed correctly
 fun main()

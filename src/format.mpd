@@ -1,0 +1,15 @@
+enum PixelFormat
+    Mono   = 0   // 1-bit, no palette — OLED framebuffer (0=off, 1=on)
+    RGB565 = 1   // 16-bit direct color
+
+enum IndexFormat
+    Index1 = 0   // 1-bit index, 2-color palette
+    Index2 = 1   // 2-bit index, 4-color palette
+    Index4 = 2   // 4-bit index, 16-color palette
+    Index8 = 3   // 8-bit index, 256-color palette
+
+enum Rotation
+    R0   = 0
+    R90  = 1
+    R180 = 2
+    R270 = 3

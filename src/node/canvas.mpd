@@ -1,4 +1,4 @@
-import graphics::IndexFormat
+import format::IndexFormat
 import geometry::*
 import render_context::RenderContext
 import palette::TRANSPARENT

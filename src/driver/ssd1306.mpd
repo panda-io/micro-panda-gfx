@@ -11,6 +11,7 @@
 //   // disp._ssd1306.driver is ready; strip buffer pre-wired — init gfx with &disp._ssd1306.driver
 
 import display::*
+import format::*
 import graphics::*
 import geometry::*
 import i2c::*

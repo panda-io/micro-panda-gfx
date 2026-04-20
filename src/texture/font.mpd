@@ -1,0 +1,11 @@
+import texture.sprite_sheet::SpriteSheet
+
+// Monospaced bitmap font backed by a SpriteSheet.
+// Glyph id = (c - first); sheet must cover all codes in [first, last].
+// palette[0] = TRANSPARENT, palette[1] = foreground (set per draw call).
+class Font
+    var sheet:     &SpriteSheet
+    var advance_x: int    // horizontal advance per glyph (pixels)
+    var advance_y: int    // vertical advance per line    (pixels)
+    var first:     byte   // first CP437 code in sheet
+    var last:      byte   // last  CP437 code in sheet

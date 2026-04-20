@@ -1,0 +1,65 @@
+import format::IndexFormat
+import texture.image::Compress
+
+// SpriteSheet — flat collection of equal-size indexed-color sprites.
+//
+// Uncompressed (offsets empty): fixed stride; offset = id * bytes_per_sprite().
+// RLE: offsets[id] gives byte start in data[].
+//
+// Memory placement:
+//   data, offsets → const → flash (read-only asset data)
+//   palette       → val   → RAM  (hot-path palette access)
+class SpriteSheet
+    var data:         byte[]
+    var offsets:      int[]       // empty = uncompressed fixed stride
+    var palette:      u16[]
+    var size:         SpriteSize
+    var count:        int
+    var index_format: IndexFormat
+    var compress:     Compress
+
+    @inline
+    fun sprite_width() int
+        if size == SpriteSize.Size8x8
+            return 8
+        if size == SpriteSize.Size16x16
+            return 16
+        return 32
+
+    @inline
+    fun sprite_height() int
+        return sprite_width()
+
+    @inline
+    fun bytes_per_sprite() int
+        val w: int = sprite_width()
+        val h: int = sprite_height()
+        if index_format == IndexFormat.Index1
+            return ((w + 7) / 8) * h
+        if index_format == IndexFormat.Index2
+            return ((w + 3) / 4) * h
+        if index_format == IndexFormat.Index4
+            return ((w + 1) / 2) * h
+        return w * h
+
+    // Returns byte offset into data[] for sprite id.
+    @inline
+    fun sprite_data_offset(id: int) int
+        if offsets.size() > 0
+            return offsets[id]
+        return id * bytes_per_sprite()
+
+    // Returns byte length of sprite id's data (uncompressed: fixed; RLE: from offsets table).
+    @inline
+    fun sprite_data_length(id: int) int
+        if offsets.size() > 0
+            if id + 1 < offsets.size()
+                return offsets[id + 1] - offsets[id]
+            return data.size() - offsets[id]
+        return bytes_per_sprite()
+
+// Fixed sprite dimensions — all sprites in a sheet share the same square size.
+enum SpriteSize
+    Size8x8   = 0   //  8×8  pixels
+    Size16x16 = 1   // 16×16 pixels
+    Size32x32 = 2   // 32×32 pixels

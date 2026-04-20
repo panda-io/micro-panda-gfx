@@ -74,13 +74,15 @@ Companion enums: `MonoColor`, `Gray4Color`, `Gray16Color`, `UIColor`.
 | File | Contents |
 |---|---|
 | `src/graphics.mpd` | `GraphicsDriver` + `Graphics` class, strip render loop |
-| `src/pixel_format.mpd` | `PixelFormat` enum, `TRANSPARENT` constant |
-| `src/index_format.mpd` | `IndexFormat` enum (Index1/2/4/8) |
+| `src/format.mpd` | `PixelFormat`, `IndexFormat`, `Rotation` enums |
 | `src/palette.mpd` | Standard palettes + color index enums |
-| `src/rotation.mpd` | `Rotation` enum |
-| `src/rect.mpd` | `Rect` — axis-aligned rectangle, used for node bounds and culling |
 | `src/render_context.mpd` | `RenderContext` — strip draw API, window clipping, `intersect` |
-| `src/node/node.mpd` | `Node` union type |
+| `src/node.mpd` | `Node` base class |
+| `src/node/bitmap.mpd` | `Bitmap` node + `create_bitmap_from_image` / `create_bitmap_from_sprite_sheet` |
 | `src/node/canvas.mpd` | `Canvas` — indexed pixel buffer, all draw primitives |
-| `src/font/font.mpd` | `Font` class + `get_pixel` |
-| `src/font/font_default_6x8.mpd` | CP437 6×8 default font bitmap (`const` → flash) |
+| `src/node/text.mpd` | `Text` node + `create_text` |
+| `src/node/container.mpd` | `Container` — hierarchical node composition |
+| `src/texture/image.mpd` | `Compress` enum + `Image` — single indexed-color bitmap asset |
+| `src/texture/sprite_sheet.mpd` | `SpriteSize` enum + `SpriteSheet` — fixed-size sprite collection |
+| `src/texture/font.mpd` | `Font` — monospaced bitmap font descriptor backed by `SpriteSheet` |
+| `src/fonts/font_default_6x8.mpd` | CP437 6×8 default font bitmap (`const` → flash) |

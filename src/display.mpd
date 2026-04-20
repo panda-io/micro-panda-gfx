@@ -6,10 +6,6 @@ enum DisplayInterface
     I2C = 0
     SPI = 1
 
-enum DisplayColor
-    MONO   = 0   // 1-bit monochrome
-    RGB565 = 1   // 16-bit colour (5R 6G 5B)
-
 // ── app-filled connection config ──────────────────────────────────────────────
 // User fills this with their wiring before calling attach_*().
 

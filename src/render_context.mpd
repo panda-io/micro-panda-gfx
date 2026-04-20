@@ -1,12 +1,8 @@
-import graphics::PixelFormat
-import graphics::IndexFormat
+import format::*
 import geometry::*
 import math::min
 import math::max
 import palette::TRANSPARENT
-import bitmap::Bitmap
-import bitmap::SpriteSheet
-import bitmap::Image
 
 // Strip render context passed to every node's render method.
 // offset_x/offset_y are NOT in context — passed separately so containers can

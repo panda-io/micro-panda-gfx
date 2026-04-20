@@ -3,8 +3,8 @@ import graphics::*
 import geometry::*
 import display::*
 import driver.ssd1306::*
-import bitmap::*
-import canvas::*
+import node.bitmap::*
+import node.canvas::*
 import palette::*
 import rtos::*
 import icon::*
