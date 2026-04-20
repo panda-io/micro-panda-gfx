@@ -9,13 +9,13 @@ typedef struct Text Text;
 typedef struct Image Image;
 typedef struct SpriteSheet SpriteSheet;
 typedef struct Font Font;
+typedef struct Context Context;
 typedef struct Connection Connection;
 typedef struct Point Point;
 typedef struct Rect Rect;
 typedef struct Driver Driver;
 typedef struct Graphics Graphics;
 typedef struct Node Node;
-typedef struct Context Context;
 typedef struct Allocator Allocator;
 typedef struct ArrayList_Node_p ArrayList_Node_p;
 
@@ -167,16 +167,29 @@ struct Allocator {
   int32_t _cursor;
 };
 
+struct Context {
+  __Slice_uint8_t buffer;
+  PixelFormat format;
+  Rect viewpoint;
+};
+
 struct Node {
   Rect bound;
   void* handle;
   __Fn_void_Context_p_Point_p_void_p renderer;
 };
 
-struct Context {
-  __Slice_uint8_t buffer;
-  PixelFormat format;
-  Rect viewpoint;
+struct Graphics {
+  Driver* _driver;
+  Node* _root;
+  uint16_t _background;
+  bool _dirty_render;
+  Rect _render_window;
+  __Slice_uint8_t _strip0;
+  __Slice_uint8_t _strip1;
+  bool _single_buffer;
+  int32_t _front_buffer;
+  Context _context;
 };
 
 struct Canvas {
@@ -211,19 +224,6 @@ struct Text {
   Font* _font;
   uint16_t _color;
   bool _wrap;
-};
-
-struct Graphics {
-  Driver* _driver;
-  Node* _root;
-  uint16_t _background;
-  bool _dirty_render;
-  Rect _render_window;
-  __Slice_uint8_t _strip0;
-  __Slice_uint8_t _strip1;
-  bool _single_buffer;
-  int32_t _front_buffer;
-  Context _context;
 };
 
 void main__main(void);
@@ -277,19 +277,6 @@ static inline int32_t SpriteSheet_sprite_height(SpriteSheet* this);
 static inline int32_t SpriteSheet_bytes_per_sprite(SpriteSheet* this);
 static inline int32_t SpriteSheet_sprite_data_offset(SpriteSheet* this, int32_t id);
 static inline int32_t SpriteSheet_sprite_data_length(SpriteSheet* this, int32_t id);
-static inline void Point_copy(Point* this, Point* point);
-static inline void Rect_copy(Rect* this, Rect* rect);
-static inline bool Rect_intersect(Rect* this, Rect* rect);
-static inline bool Rect_clip(Rect* this, Rect* result, Rect* viewpoint, Point* offset);
-static inline bool Rect_contains(Rect* this, Point* point);
-static inline void Rect_merge(Rect* this, Rect* rect);
-void Graphics_set_root(Graphics* this, Node* node);
-void Graphics_init(Graphics* this, Driver* driver, PixelFormat pixel_format, uint16_t background, Rotation rotation, bool dirty_render);
-void Graphics_mark_dirty(Graphics* this, Rect* rect);
-void Graphics_render(Graphics* this);
-static __Slice_uint8_t Graphics__front_strip(Graphics* this);
-static __Slice_uint8_t Graphics__back_strip(Graphics* this);
-static void Graphics__clear_strip(Graphics* this, __Slice_uint8_t buffer);
 static inline bool Context_intersect(Context* this, Rect* rect);
 static inline void Context_set_pixel(Context* this, Point* point, uint16_t color);
 static inline void Context_fill_rect(Context* this, Rect* rect, uint16_t color);
@@ -305,6 +292,19 @@ static void Context__render_bitmap_index4(Context* this, Rect* origin, Rect* cli
 static void Context__render_bitmap_index8(Context* this, Rect* origin, Rect* clipped, __Slice_uint8_t data, __Slice_uint16_t palette);
 static inline void Context__set_pixel_mono(Context* this, Point* point, uint16_t color);
 static inline void Context__set_pixel_rgb565(Context* this, Point* point, uint16_t color);
+static inline void Point_copy(Point* this, Point* point);
+static inline void Rect_copy(Rect* this, Rect* rect);
+static inline bool Rect_intersect(Rect* this, Rect* rect);
+static inline bool Rect_clip(Rect* this, Rect* result, Rect* viewpoint, Point* offset);
+static inline bool Rect_contains(Rect* this, Point* point);
+static inline void Rect_merge(Rect* this, Rect* rect);
+void Graphics_set_root(Graphics* this, Node* node);
+void Graphics_init(Graphics* this, Driver* driver, PixelFormat pixel_format, uint16_t background, Rotation rotation, bool dirty_render);
+void Graphics_mark_dirty(Graphics* this, Rect* rect);
+void Graphics_render(Graphics* this);
+static __Slice_uint8_t Graphics__front_strip(Graphics* this);
+static __Slice_uint8_t Graphics__back_strip(Graphics* this);
+static void Graphics__clear_strip(Graphics* this, __Slice_uint8_t buffer);
 static inline int32_t math__floor_q16(int32_t value);
 static inline int32_t math__ceil_q16(int32_t value);
 static inline int32_t math__round_q16(int32_t value);
@@ -987,171 +987,6 @@ static inline int32_t SpriteSheet_sprite_data_length(SpriteSheet* this, int32_t 
   return SpriteSheet_bytes_per_sprite(this);
 }
 
-static inline void Point_copy(Point* this, Point* point) {
-  (this->x = point->x);
-  (this->y = point->y);
-}
-
-static inline void Rect_copy(Rect* this, Rect* rect) {
-  (this->x = rect->x);
-  (this->y = rect->y);
-  (this->width = rect->width);
-  (this->height = rect->height);
-}
-
-static inline bool Rect_intersect(Rect* this, Rect* rect) {
-  return ((((rect->x < (this->x + this->width)) && ((rect->x + rect->width) > this->x)) && (rect->y < (this->y + this->height))) && ((rect->y + rect->height) > this->y));
-}
-
-static inline bool Rect_clip(Rect* this, Rect* result, Rect* viewpoint, Point* offset) {
-  int32_t x0 = math__max_int32_t((this->x + offset->x), viewpoint->x);
-  int32_t y0 = math__max_int32_t((this->y + offset->y), viewpoint->y);
-  int32_t x1 = math__min_int32_t(((this->x + offset->x) + this->width), (viewpoint->x + viewpoint->width));
-  int32_t y1 = math__min_int32_t(((this->y + offset->y) + this->height), (viewpoint->y + viewpoint->height));
-  if (((x0 >= x1) || (y0 >= y1))) {
-    return false;
-  }
-  (result->x = x0);
-  (result->y = y0);
-  (result->width = (x1 - x0));
-  (result->height = (y1 - y0));
-  return true;
-}
-
-static inline bool Rect_contains(Rect* this, Point* point) {
-  return ((((point->x >= this->x) && (point->x < (this->x + this->width))) && (point->y >= this->y)) && (point->y < (this->y + this->height)));
-}
-
-static inline void Rect_merge(Rect* this, Rect* rect) {
-  int32_t right = math__max_int32_t((this->x + this->width), (rect->x + rect->width));
-  int32_t bottom = math__max_int32_t((this->y + this->height), (rect->y + rect->height));
-  (this->x = math__min_int32_t(this->x, rect->x));
-  (this->y = math__min_int32_t(this->y, rect->y));
-  (this->width = (right - this->x));
-  (this->height = (bottom - this->y));
-}
-
-void Graphics_set_root(Graphics* this, Node* node) {
-  (this->_root = node);
-}
-
-void Graphics_init(Graphics* this, Driver* driver, PixelFormat pixel_format, uint16_t background, Rotation rotation, bool dirty_render) {
-  (this->_driver = driver);
-  (this->_strip0 = driver->strip0);
-  (this->_strip1 = driver->strip1);
-  (this->_context.format = pixel_format);
-  (this->_background = background);
-  (this->_dirty_render = dirty_render);
-  if ((driver->strip1.size == 0)) {
-    (this->_single_buffer = true);
-  }
-  (this->_render_window.x = 0);
-  (this->_render_window.y = 0);
-  if (this->_dirty_render) {
-    (this->_render_window.width = 0);
-    (this->_render_window.height = 0);
-  }
-  this->_driver->set_rotation(this->_driver->handle, rotation);
-  if (((rotation == Rotation_R0) || (rotation == Rotation_R180))) {
-    if ((!this->_dirty_render)) {
-      (this->_render_window.width = this->_driver->width);
-      (this->_render_window.height = this->_driver->height);
-    }
-  } else {
-    if ((!this->_dirty_render)) {
-      (this->_render_window.width = this->_driver->height);
-      (this->_render_window.height = this->_driver->width);
-    }
-  }
-  (this->_front_buffer = 0);
-}
-
-void Graphics_mark_dirty(Graphics* this, Rect* rect) {
-  int32_t aligned_x = rect->x;
-  int32_t aligned_width = rect->width;
-  if ((this->_context.format == PixelFormat_Mono)) {
-    int32_t right = (((rect->x + rect->width) + 7) & (~7));
-    (aligned_x = (rect->x & (~7)));
-    (aligned_width = (right - aligned_x));
-  }
-  Rect aligned = (Rect){.x = aligned_x, .y = rect->y, .width = aligned_width, .height = rect->height};
-  if (((this->_render_window.width == 0) && (this->_render_window.height == 0))) {
-    Rect_copy((&this->_render_window), (&aligned));
-  } else {
-    Rect_merge((&this->_render_window), (&aligned));
-  }
-}
-
-void Graphics_render(Graphics* this) {
-  if (((this->_render_window.width == 0) || (this->_render_window.height == 0))) {
-    return;
-  }
-  (this->_context.buffer = Graphics__back_strip(this));
-  (this->_context.viewpoint.x = this->_render_window.x);
-  (this->_context.viewpoint.width = this->_render_window.width);
-  int32_t row_bytes = 0;
-  if ((this->_context.format == PixelFormat_Mono)) {
-    (row_bytes = ((this->_context.viewpoint.width + 7) / 8));
-  } else {
-    (row_bytes = (this->_context.viewpoint.width * 2));
-  }
-  int32_t strip_rows = (((this->_context.buffer.size + row_bytes) - 1) / row_bytes);
-  int32_t strip_count = (((this->_render_window.height + strip_rows) - 1) / strip_rows);
-  Point offset = (Point){.x = 0, .y = 0};
-  for (int32_t strip_index = 0; strip_index < strip_count; strip_index++) {
-    (this->_context.viewpoint.y = (this->_render_window.y + (strip_index * strip_rows)));
-    (this->_context.viewpoint.height = math__min_int32_t(strip_rows, ((this->_render_window.y + this->_render_window.height) - this->_context.viewpoint.y)));
-    Graphics__clear_strip(this, this->_context.buffer);
-    this->_root->renderer((&this->_context), (&offset), this->_root->handle);
-    this->_driver->wait(this->_driver->handle);
-    (this->_front_buffer = (1 - this->_front_buffer));
-    this->_driver->flush(this->_driver->handle, (&this->_context.viewpoint), Graphics__front_strip(this));
-  }
-  this->_driver->frame_complete(this->_driver->handle);
-  if (this->_dirty_render) {
-    (this->_render_window.x = 0);
-    (this->_render_window.y = 0);
-    (this->_render_window.width = 0);
-    (this->_render_window.height = 0);
-  }
-}
-
-static __Slice_uint8_t Graphics__front_strip(Graphics* this) {
-  if ((this->_single_buffer || (this->_front_buffer == 0))) {
-    return this->_strip0;
-  }
-  return this->_strip1;
-}
-
-static __Slice_uint8_t Graphics__back_strip(Graphics* this) {
-  if ((this->_single_buffer || (this->_front_buffer == 1))) {
-    return this->_strip0;
-  }
-  return this->_strip1;
-}
-
-static void Graphics__clear_strip(Graphics* this, __Slice_uint8_t buffer) {
-  if ((this->_context.format == PixelFormat_Mono)) {
-    if ((this->_background == 0)) {
-      memory__memory_zero(buffer);
-    } else {
-      memory__memory_set(buffer, 0xFF);
-    }
-  } else {
-    if ((this->_background == 0)) {
-      memory__memory_zero(buffer);
-    } else {
-      int32_t i = 0;
-      int32_t size = buffer.size;
-      while ((i < size)) {
-        (buffer.ptr[i] = ((uint8_t)((this->_background >> 8))));
-        (buffer.ptr[(i + 1)] = ((uint8_t)(this->_background)));
-        (i += 2);
-      }
-    }
-  }
-}
-
 static inline bool Context_intersect(Context* this, Rect* rect) {
   return Rect_intersect((&this->viewpoint), rect);
 }
@@ -1425,6 +1260,171 @@ static inline void Context__set_pixel_rgb565(Context* this, Point* point, uint16
   int32_t index = (((point->y * this->viewpoint.width) + point->x) * 2);
   (this->buffer.ptr[index] = ((uint8_t)((color >> 8))));
   (this->buffer.ptr[(index + 1)] = ((uint8_t)(color)));
+}
+
+static inline void Point_copy(Point* this, Point* point) {
+  (this->x = point->x);
+  (this->y = point->y);
+}
+
+static inline void Rect_copy(Rect* this, Rect* rect) {
+  (this->x = rect->x);
+  (this->y = rect->y);
+  (this->width = rect->width);
+  (this->height = rect->height);
+}
+
+static inline bool Rect_intersect(Rect* this, Rect* rect) {
+  return ((((rect->x < (this->x + this->width)) && ((rect->x + rect->width) > this->x)) && (rect->y < (this->y + this->height))) && ((rect->y + rect->height) > this->y));
+}
+
+static inline bool Rect_clip(Rect* this, Rect* result, Rect* viewpoint, Point* offset) {
+  int32_t x0 = math__max_int32_t((this->x + offset->x), viewpoint->x);
+  int32_t y0 = math__max_int32_t((this->y + offset->y), viewpoint->y);
+  int32_t x1 = math__min_int32_t(((this->x + offset->x) + this->width), (viewpoint->x + viewpoint->width));
+  int32_t y1 = math__min_int32_t(((this->y + offset->y) + this->height), (viewpoint->y + viewpoint->height));
+  if (((x0 >= x1) || (y0 >= y1))) {
+    return false;
+  }
+  (result->x = x0);
+  (result->y = y0);
+  (result->width = (x1 - x0));
+  (result->height = (y1 - y0));
+  return true;
+}
+
+static inline bool Rect_contains(Rect* this, Point* point) {
+  return ((((point->x >= this->x) && (point->x < (this->x + this->width))) && (point->y >= this->y)) && (point->y < (this->y + this->height)));
+}
+
+static inline void Rect_merge(Rect* this, Rect* rect) {
+  int32_t right = math__max_int32_t((this->x + this->width), (rect->x + rect->width));
+  int32_t bottom = math__max_int32_t((this->y + this->height), (rect->y + rect->height));
+  (this->x = math__min_int32_t(this->x, rect->x));
+  (this->y = math__min_int32_t(this->y, rect->y));
+  (this->width = (right - this->x));
+  (this->height = (bottom - this->y));
+}
+
+void Graphics_set_root(Graphics* this, Node* node) {
+  (this->_root = node);
+}
+
+void Graphics_init(Graphics* this, Driver* driver, PixelFormat pixel_format, uint16_t background, Rotation rotation, bool dirty_render) {
+  (this->_driver = driver);
+  (this->_strip0 = driver->strip0);
+  (this->_strip1 = driver->strip1);
+  (this->_context.format = pixel_format);
+  (this->_background = background);
+  (this->_dirty_render = dirty_render);
+  if ((driver->strip1.size == 0)) {
+    (this->_single_buffer = true);
+  }
+  (this->_render_window.x = 0);
+  (this->_render_window.y = 0);
+  if (this->_dirty_render) {
+    (this->_render_window.width = 0);
+    (this->_render_window.height = 0);
+  }
+  this->_driver->set_rotation(this->_driver->handle, rotation);
+  if (((rotation == Rotation_R0) || (rotation == Rotation_R180))) {
+    if ((!this->_dirty_render)) {
+      (this->_render_window.width = this->_driver->width);
+      (this->_render_window.height = this->_driver->height);
+    }
+  } else {
+    if ((!this->_dirty_render)) {
+      (this->_render_window.width = this->_driver->height);
+      (this->_render_window.height = this->_driver->width);
+    }
+  }
+  (this->_front_buffer = 0);
+}
+
+void Graphics_mark_dirty(Graphics* this, Rect* rect) {
+  int32_t aligned_x = rect->x;
+  int32_t aligned_width = rect->width;
+  if ((this->_context.format == PixelFormat_Mono)) {
+    int32_t right = (((rect->x + rect->width) + 7) & (~7));
+    (aligned_x = (rect->x & (~7)));
+    (aligned_width = (right - aligned_x));
+  }
+  Rect aligned = (Rect){.x = aligned_x, .y = rect->y, .width = aligned_width, .height = rect->height};
+  if (((this->_render_window.width == 0) && (this->_render_window.height == 0))) {
+    Rect_copy((&this->_render_window), (&aligned));
+  } else {
+    Rect_merge((&this->_render_window), (&aligned));
+  }
+}
+
+void Graphics_render(Graphics* this) {
+  if (((this->_render_window.width == 0) || (this->_render_window.height == 0))) {
+    return;
+  }
+  (this->_context.buffer = Graphics__back_strip(this));
+  (this->_context.viewpoint.x = this->_render_window.x);
+  (this->_context.viewpoint.width = this->_render_window.width);
+  int32_t row_bytes = 0;
+  if ((this->_context.format == PixelFormat_Mono)) {
+    (row_bytes = ((this->_context.viewpoint.width + 7) / 8));
+  } else {
+    (row_bytes = (this->_context.viewpoint.width * 2));
+  }
+  int32_t strip_rows = (((this->_context.buffer.size + row_bytes) - 1) / row_bytes);
+  int32_t strip_count = (((this->_render_window.height + strip_rows) - 1) / strip_rows);
+  Point offset = (Point){.x = 0, .y = 0};
+  for (int32_t strip_index = 0; strip_index < strip_count; strip_index++) {
+    (this->_context.viewpoint.y = (this->_render_window.y + (strip_index * strip_rows)));
+    (this->_context.viewpoint.height = math__min_int32_t(strip_rows, ((this->_render_window.y + this->_render_window.height) - this->_context.viewpoint.y)));
+    Graphics__clear_strip(this, this->_context.buffer);
+    this->_root->renderer((&this->_context), (&offset), this->_root->handle);
+    this->_driver->wait(this->_driver->handle);
+    (this->_front_buffer = (1 - this->_front_buffer));
+    this->_driver->flush(this->_driver->handle, (&this->_context.viewpoint), Graphics__front_strip(this));
+  }
+  this->_driver->frame_complete(this->_driver->handle);
+  if (this->_dirty_render) {
+    (this->_render_window.x = 0);
+    (this->_render_window.y = 0);
+    (this->_render_window.width = 0);
+    (this->_render_window.height = 0);
+  }
+}
+
+static __Slice_uint8_t Graphics__front_strip(Graphics* this) {
+  if ((this->_single_buffer || (this->_front_buffer == 0))) {
+    return this->_strip0;
+  }
+  return this->_strip1;
+}
+
+static __Slice_uint8_t Graphics__back_strip(Graphics* this) {
+  if ((this->_single_buffer || (this->_front_buffer == 1))) {
+    return this->_strip0;
+  }
+  return this->_strip1;
+}
+
+static void Graphics__clear_strip(Graphics* this, __Slice_uint8_t buffer) {
+  if ((this->_context.format == PixelFormat_Mono)) {
+    if ((this->_background == 0)) {
+      memory__memory_zero(buffer);
+    } else {
+      memory__memory_set(buffer, 0xFF);
+    }
+  } else {
+    if ((this->_background == 0)) {
+      memory__memory_zero(buffer);
+    } else {
+      int32_t i = 0;
+      int32_t size = buffer.size;
+      while ((i < size)) {
+        (buffer.ptr[i] = ((uint8_t)((this->_background >> 8))));
+        (buffer.ptr[(i + 1)] = ((uint8_t)(this->_background)));
+        (i += 2);
+      }
+    }
+  }
 }
 
 static inline int32_t math__floor_q16(int32_t value) {

@@ -5,13 +5,13 @@ import node.text::*
 import texture.image::*
 import texture.sprite_sheet::*
 import texture.font::*
+import context::*
 import display::*
 import format::*
 import geometry::*
 import graphics::*
 import node::*
 import palette::*
-import render_context::*
 
 // do nothing, just test that the file is parsed correctly
 fun main()
