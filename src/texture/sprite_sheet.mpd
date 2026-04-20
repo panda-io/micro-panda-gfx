@@ -1,5 +1,6 @@
 import format::IndexFormat
-import texture.image::Compress
+import format::Compress
+import format::SpriteSize
 
 // SpriteSheet — flat collection of equal-size indexed-color sprites.
 //
@@ -57,9 +58,3 @@ class SpriteSheet
                 return offsets[id + 1] - offsets[id]
             return data.size() - offsets[id]
         return bytes_per_sprite()
-
-// Fixed sprite dimensions — all sprites in a sheet share the same square size.
-enum SpriteSize
-    Size8x8   = 0   //  8×8  pixels
-    Size16x16 = 1   // 16×16 pixels
-    Size32x32 = 2   // 32×32 pixels

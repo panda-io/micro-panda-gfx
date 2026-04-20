@@ -9,9 +9,9 @@ import palette::TRANSPARENT
 // accumulate their own offset as they recurse into children.
 //
 // All pixel coordinates are logical view coordinates.
-// RenderContext translates py → strip-local row via win_y offset internally.
+// Context translates py → strip-local row via win_y offset internally.
 
-class RenderContext
+class Context
     var buffer: byte[]
     var format: PixelFormat
     var viewpoint: Rect

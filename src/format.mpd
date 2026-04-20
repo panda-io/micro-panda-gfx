@@ -13,3 +13,13 @@ enum Rotation
     R90  = 1
     R180 = 2
     R270 = 3
+
+enum Compress
+    None = 0
+    RLE  = 1
+
+// Fixed sprite dimensions — all sprites in a sheet share the same square size.
+enum SpriteSize
+    Size8x8   = 0   //  8×8  pixels
+    Size16x16 = 1   // 16×16 pixels
+    Size32x32 = 2   // 32×32 pixels

@@ -1,8 +1,5 @@
 import format::IndexFormat
-
-enum Compress
-    None = 0
-    RLE  = 1
+import format::Compress
 
 // Image — single indexed-color bitmap with arbitrary dimensions.
 //

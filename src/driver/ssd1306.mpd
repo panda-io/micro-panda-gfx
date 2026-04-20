@@ -10,7 +10,7 @@
 //   attach_ssd1306_128x32(&disp, &conn)
 //   // disp._ssd1306.driver is ready; strip buffer pre-wired — init gfx with &disp._ssd1306.driver
 
-import display::*
+import display
 import format::*
 import graphics::*
 import geometry::*
@@ -146,7 +146,7 @@ fun _hw_init(dev: int, rows: int)
 
 // ── shared attach logic ────────────────────────────────────────────────────────
 
-fun _attach(display: &SSD1306, strip: byte[], page_buf: byte[], conn: &DisplayConn, width: int, height: int)
+fun _attach(display: &SSD1306, strip: byte[], page_buf: byte[], conn: &display.Connection, width: int, height: int)
     display._device      = conn.device
     display._width       = width
     display._height      = height
@@ -171,10 +171,10 @@ fun _attach(display: &SSD1306, strip: byte[], page_buf: byte[], conn: &DisplayCo
 
 // ── variant attach functions ───────────────────────────────────────────────────
 
-fun attach_ssd1306_128x32(display: &SSD1306_128x32, conn: &DisplayConn)
-    _attach(&display._ssd1306, display._strip, display._page_buf, conn, 128, 32)
-    _hw_init(conn.device, 32)
+fun attach_ssd1306_128x32(display: &SSD1306_128x32, connection: &display.Connection)
+    _attach(&display._ssd1306, display._strip, display._page_buf, connection, 128, 32)
+    _hw_init(connection.device, 32)
 
-fun attach_ssd1306_128x64(display: &SSD1306_128x64, conn: &DisplayConn)
-    _attach(&display._ssd1306, display._strip, display._page_buf, conn, 128, 64)
-    _hw_init(conn.device, 64)
+fun attach_ssd1306_128x64(display: &SSD1306_128x64, connection: &display.Connection)
+    _attach(&display._ssd1306, display._strip, display._page_buf, connection, 128, 64)
+    _hw_init(connection.device, 64)

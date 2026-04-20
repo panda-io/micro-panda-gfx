@@ -19,7 +19,7 @@ import memory::memory_set
 
 // ── driver table ──────────────────────────────────────────────────────────────
 
-class GraphicsDriver
+class Driver
     var width:          int
     var height:         int
     var strip0:         byte[]
@@ -34,7 +34,7 @@ class GraphicsDriver
 // ── Gfx ───────────────────────────────────────────────────────────────────────
 
 class Graphics
-    var _driver:        &GraphicsDriver
+    var _driver:        &Driver
     var _root:          &Node                // any node type; owns the scene tree
     var _background:    u16                  // solid fill color for strip clear (RGB565); Mono: 0=black, non-zero=white
     var _dirty_render:  bool                 // if true, render only dirty rects; requires dirty tracking and pre-pass to compute dirty rects
@@ -52,7 +52,7 @@ class Graphics
 
     // Init with one or two strip buffers. Pass empty buffer1 for single-buffer mode.
     // Rotation is fixed for the lifetime of this Gfx instance.
-    fun init(driver: &GraphicsDriver, pixel_format: PixelFormat, background: u16, rotation: Rotation, dirty_render: bool)
+    fun init(driver: &Driver, pixel_format: PixelFormat, background: u16, rotation: Rotation, dirty_render: bool)
         _driver = driver
         _strip0 = driver.strip0
         _strip1 = driver.strip1
