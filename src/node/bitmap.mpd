@@ -1,3 +1,4 @@
+import format::Compress
 import format::IndexFormat
 import geometry::*
 import node::Node
@@ -12,7 +13,7 @@ fun create_bitmap_from_image(allocator: &Allocator, point: &Point, image: &Image
     bound.y = point.y
     bound.width = image.width
     bound.height = image.height
-    bitmap._init(&bound, image.data, image.index_format, image.palette)
+    bitmap._init(&bound, image.data, image.index_format, image.palette, image.compress)
     return bitmap
 
 fun create_bitmap_from_sprite_sheet(allocator: &Allocator, point: &Point, sheet: &SpriteSheet, id: int) &Bitmap
@@ -24,7 +25,7 @@ fun create_bitmap_from_sprite_sheet(allocator: &Allocator, point: &Point, sheet:
     bound.height = sheet.sprite_height()
     val offset: int = sheet.sprite_data_offset(id)
     val length: int = sheet.sprite_data_length(id)
-    bitmap._init(&bound, { &sheet.data[offset], length}, sheet.index_format, sheet.palette)
+    bitmap._init(&bound, { &sheet.data[offset], length}, sheet.index_format, sheet.palette, sheet.compress)
     return bitmap
 
 fun create_bitmap_from_canvas(allocator: &Allocator, point: &Point, canvas: &Canvas) &Bitmap
@@ -35,7 +36,7 @@ fun create_bitmap_from_canvas(allocator: &Allocator, point: &Point, canvas: &Can
     bound.y      = point.y
     bound.width  = image.width
     bound.height = image.height
-    bitmap._init(&bound, image.data, image.index_format, image.palette)
+    bitmap._init(&bound, image.data, image.index_format, image.palette, Compress.None)
     return bitmap
 
 fun render_bitmap(context: &Context, offset: &Point, handle: &void)
@@ -45,21 +46,23 @@ fun render_bitmap(context: &Context, offset: &Point, handle: &void)
     rect.y = offset.y + bitmap._node.bound.y
     rect.width = bitmap._node.bound.width
     rect.height = bitmap._node.bound.height
-    context.draw_bitmap(&rect, bitmap._data, bitmap._index_format, bitmap._palette)
+    context.draw_bitmap(&rect, bitmap._data, bitmap._index_format, bitmap._palette, bitmap._compress)
 
 class Bitmap
     var _node:          Node
     var _data:          byte[]
+    var _compress:      Compress
     var _index_format:  IndexFormat
     var _palette:       u16[]
 
     fun get_node() &Node
         return &_node
 
-    fun _init(rect: &Rect, data: byte[], index_format: IndexFormat, palette: u16[])
+    fun _init(rect: &Rect, data: byte[], index_format: IndexFormat, palette: u16[], compress: Compress)
         _node.bound.copy(rect)
         _node.handle = &void(this)
         _node.renderer = render_bitmap
         _data = data
+        _compress = compress
         _index_format = index_format
         _palette = palette

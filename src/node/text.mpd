@@ -1,3 +1,4 @@
+import format::Compress
 import geometry::*
 import node::Node
 import context::Context
@@ -35,7 +36,7 @@ fun render_text(context: &Context, offset: &Point, handle: &void)
             var data_length: int = font.sheet.sprite_data_length(id)
             glyph_rect.x = cursor.x
             glyph_rect.y = cursor.y
-            context.draw_bitmap(&glyph_rect, {&font.sheet.data[data_offset], data_length}, font.sheet.index_format, font.sheet.palette)
+            context.draw_bitmap(&glyph_rect, {&font.sheet.data[data_offset], data_length}, font.sheet.index_format, font.sheet.palette, font.sheet.compress)
         cursor.x += font.advance_x
 
 class Text

@@ -212,6 +212,7 @@ struct Container {
 struct Bitmap {
   Node _node;
   __Slice_uint8_t _data;
+  Compress _compress;
   IndexFormat _index_format;
   __Slice_uint16_t _palette;
 };
@@ -246,7 +247,7 @@ Bitmap* node__bitmap__create_bitmap_from_sprite_sheet(Allocator* allocator, Poin
 Bitmap* node__bitmap__create_bitmap_from_canvas(Allocator* allocator, Point* point, Canvas* canvas);
 void node__bitmap__render_bitmap(Context* context, Point* offset, void* handle);
 Node* Bitmap_get_node(Bitmap* this);
-static void Bitmap__init(Bitmap* this, Rect* rect, __Slice_uint8_t data, IndexFormat index_format, __Slice_uint16_t palette);
+static void Bitmap__init(Bitmap* this, Rect* rect, __Slice_uint8_t data, IndexFormat index_format, __Slice_uint16_t palette, Compress compress);
 Text* node__text__create_text(Allocator* allocator, Rect* bound, __Slice_uint8_t text, uint16_t color, bool wrap, Font* font);
 void node__text__render_text(Context* context, Point* offset, void* handle);
 Node* Text_get_node(Text* this);
@@ -264,11 +265,15 @@ void Context_draw_rect(Context* this, Rect* rect, uint16_t color);
 void Context_fill_rect(Context* this, Rect* rect, uint16_t color);
 void Context_draw_round_rect(Context* this, Rect* rect, int32_t radius, uint16_t color);
 void Context_fill_round_rect(Context* this, Rect* rect, int32_t radius, uint16_t color);
-void Context_draw_bitmap(Context* this, Rect* rect, __Slice_uint8_t data, IndexFormat index_format, __Slice_uint16_t palette);
+void Context_draw_bitmap(Context* this, Rect* rect, __Slice_uint8_t data, IndexFormat index_format, __Slice_uint16_t palette, Compress compress);
 static void Context__render_bitmap_index1(Context* this, Rect* origin, Rect* clipped, __Slice_uint8_t data, __Slice_uint16_t palette);
 static void Context__render_bitmap_index2(Context* this, Rect* origin, Rect* clipped, __Slice_uint8_t data, __Slice_uint16_t palette);
 static void Context__render_bitmap_index4(Context* this, Rect* origin, Rect* clipped, __Slice_uint8_t data, __Slice_uint16_t palette);
 static void Context__render_bitmap_index8(Context* this, Rect* origin, Rect* clipped, __Slice_uint8_t data, __Slice_uint16_t palette);
+static void Context__render_bitmap_rle_index1(Context* this, Rect* origin, Rect* clipped, __Slice_uint8_t data, __Slice_uint16_t palette);
+static void Context__render_bitmap_rle_index2(Context* this, Rect* origin, Rect* clipped, __Slice_uint8_t data, __Slice_uint16_t palette);
+static void Context__render_bitmap_rle_index4(Context* this, Rect* origin, Rect* clipped, __Slice_uint8_t data, __Slice_uint16_t palette);
+static void Context__render_bitmap_rle_index8(Context* this, Rect* origin, Rect* clipped, __Slice_uint8_t data, __Slice_uint16_t palette);
 static inline void Context__set_pixel_mono(Context* this, Point* point, uint16_t color);
 static inline void Context__set_pixel_rgb565(Context* this, Point* point, uint16_t color);
 static inline void Point_copy(Point* this, Point* point);
@@ -405,6 +410,7 @@ static void Canvas__init(Canvas* this, Allocator* allocator, int32_t width, int3
   (this->_image.height = height);
   (this->_image.index_format = index_format);
   (this->_image.palette = palette);
+  (this->_image.compress = Compress_None);
   int32_t buffer_size = 0;
   if ((index_format == IndexFormat_Index1)) {
     (buffer_size = (((width + 7) / 8) * height));
@@ -521,7 +527,7 @@ Bitmap* node__bitmap__create_bitmap_from_image(Allocator* allocator, Point* poin
   (bound.y = point->y);
   (bound.width = image->width);
   (bound.height = image->height);
-  Bitmap__init(bitmap, (&bound), image->data, image->index_format, image->palette);
+  Bitmap__init(bitmap, (&bound), image->data, image->index_format, image->palette, image->compress);
   return bitmap;
 }
 
@@ -534,7 +540,7 @@ Bitmap* node__bitmap__create_bitmap_from_sprite_sheet(Allocator* allocator, Poin
   (bound.height = SpriteSheet_sprite_height(sheet));
   int32_t offset = SpriteSheet_sprite_data_offset(sheet, id);
   int32_t length = SpriteSheet_sprite_data_length(sheet, id);
-  Bitmap__init(bitmap, (&bound), (__Slice_uint8_t){(&sheet->data.ptr[offset]), length}, sheet->index_format, sheet->palette);
+  Bitmap__init(bitmap, (&bound), (__Slice_uint8_t){(&sheet->data.ptr[offset]), length}, sheet->index_format, sheet->palette, sheet->compress);
   return bitmap;
 }
 
@@ -546,7 +552,7 @@ Bitmap* node__bitmap__create_bitmap_from_canvas(Allocator* allocator, Point* poi
   (bound.y = point->y);
   (bound.width = image->width);
   (bound.height = image->height);
-  Bitmap__init(bitmap, (&bound), image->data, image->index_format, image->palette);
+  Bitmap__init(bitmap, (&bound), image->data, image->index_format, image->palette, Compress_None);
   return bitmap;
 }
 
@@ -557,18 +563,19 @@ void node__bitmap__render_bitmap(Context* context, Point* offset, void* handle) 
   (rect.y = (offset->y + bitmap->_node.bound.y));
   (rect.width = bitmap->_node.bound.width);
   (rect.height = bitmap->_node.bound.height);
-  Context_draw_bitmap(context, (&rect), bitmap->_data, bitmap->_index_format, bitmap->_palette);
+  Context_draw_bitmap(context, (&rect), bitmap->_data, bitmap->_index_format, bitmap->_palette, bitmap->_compress);
 }
 
 Node* Bitmap_get_node(Bitmap* this) {
   return (&this->_node);
 }
 
-static void Bitmap__init(Bitmap* this, Rect* rect, __Slice_uint8_t data, IndexFormat index_format, __Slice_uint16_t palette) {
+static void Bitmap__init(Bitmap* this, Rect* rect, __Slice_uint8_t data, IndexFormat index_format, __Slice_uint16_t palette, Compress compress) {
   Rect_copy((&this->_node.bound), rect);
   (this->_node.handle = ((void*)(this)));
   (this->_node.renderer = node__bitmap__render_bitmap);
   (this->_data = data);
+  (this->_compress = compress);
   (this->_index_format = index_format);
   (this->_palette = palette);
 }
@@ -607,7 +614,7 @@ void node__text__render_text(Context* context, Point* offset, void* handle) {
       int32_t data_length = SpriteSheet_sprite_data_length(font->sheet, id);
       (glyph_rect.x = cursor.x);
       (glyph_rect.y = cursor.y);
-      Context_draw_bitmap(context, (&glyph_rect), (__Slice_uint8_t){(&font->sheet->data.ptr[data_offset]), data_length}, font->sheet->index_format, font->sheet->palette);
+      Context_draw_bitmap(context, (&glyph_rect), (__Slice_uint8_t){(&font->sheet->data.ptr[data_offset]), data_length}, font->sheet->index_format, font->sheet->palette, font->sheet->compress);
     }
     (cursor.x += font->advance_x);
   }
@@ -831,7 +838,7 @@ void Context_fill_round_rect(Context* this, Rect* rect, int32_t radius, uint16_t
   }
 }
 
-void Context_draw_bitmap(Context* this, Rect* rect, __Slice_uint8_t data, IndexFormat index_format, __Slice_uint16_t palette) {
+void Context_draw_bitmap(Context* this, Rect* rect, __Slice_uint8_t data, IndexFormat index_format, __Slice_uint16_t palette, Compress compress) {
   Rect clipped = {0};
   Point zero = {0};
   (zero.x = 0);
@@ -839,17 +846,32 @@ void Context_draw_bitmap(Context* this, Rect* rect, __Slice_uint8_t data, IndexF
   if ((!Rect_clip(rect, (&clipped), (&this->viewpoint), (&zero)))) {
     return;
   }
-  if ((index_format == IndexFormat_Index1)) {
-    Context__render_bitmap_index1(this, rect, (&clipped), data, palette);
-  }
-  if ((index_format == IndexFormat_Index2)) {
-    Context__render_bitmap_index2(this, rect, (&clipped), data, palette);
-  }
-  if ((index_format == IndexFormat_Index4)) {
-    Context__render_bitmap_index4(this, rect, (&clipped), data, palette);
-  }
-  if ((index_format == IndexFormat_Index8)) {
-    Context__render_bitmap_index8(this, rect, (&clipped), data, palette);
+  if ((compress == Compress_RLE)) {
+    if ((index_format == IndexFormat_Index1)) {
+      Context__render_bitmap_rle_index1(this, rect, (&clipped), data, palette);
+    }
+    if ((index_format == IndexFormat_Index2)) {
+      Context__render_bitmap_rle_index2(this, rect, (&clipped), data, palette);
+    }
+    if ((index_format == IndexFormat_Index4)) {
+      Context__render_bitmap_rle_index4(this, rect, (&clipped), data, palette);
+    }
+    if ((index_format == IndexFormat_Index8)) {
+      Context__render_bitmap_rle_index8(this, rect, (&clipped), data, palette);
+    }
+  } else {
+    if ((index_format == IndexFormat_Index1)) {
+      Context__render_bitmap_index1(this, rect, (&clipped), data, palette);
+    }
+    if ((index_format == IndexFormat_Index2)) {
+      Context__render_bitmap_index2(this, rect, (&clipped), data, palette);
+    }
+    if ((index_format == IndexFormat_Index4)) {
+      Context__render_bitmap_index4(this, rect, (&clipped), data, palette);
+    }
+    if ((index_format == IndexFormat_Index8)) {
+      Context__render_bitmap_index8(this, rect, (&clipped), data, palette);
+    }
   }
 }
 
@@ -930,6 +952,166 @@ static void Context__render_bitmap_index8(Context* this, Rect* origin, Rect* cli
         Context_draw_pixel(this, (&point), color);
       }
     }
+  }
+}
+
+static void Context__render_bitmap_rle_index1(Context* this, Rect* origin, Rect* clipped, __Slice_uint8_t data, __Slice_uint16_t palette) {
+  int32_t row_bytes = ((origin->width + 7) / 8);
+  int32_t total_bytes = (row_bytes * origin->height);
+  int32_t di = 0;
+  int32_t run_rem = 0;
+  uint8_t run_val = 0;
+  int32_t bi = 0;
+  Point point = {0};
+  while ((bi < total_bytes)) {
+    if ((run_rem == 0)) {
+      (run_rem = ((int32_t)(data.ptr[di])));
+      (run_val = data.ptr[(di + 1)]);
+      (di += 2);
+    }
+    int32_t row = (bi / row_bytes);
+    int32_t col_byte = (bi % row_bytes);
+    int32_t sy = (origin->y + row);
+    if (((sy >= clipped->y) && (sy < (clipped->y + clipped->height)))) {
+      int32_t px = 0;
+      while ((px < 8)) {
+        int32_t lx = ((col_byte * 8) + px);
+        if ((lx < origin->width)) {
+          int32_t sx = (origin->x + lx);
+          if (((sx >= clipped->x) && (sx < (clipped->x + clipped->width)))) {
+            int32_t p = 0;
+            if (((run_val & ((uint8_t)((0x80 >> px)))) != 0)) {
+              (p = 1);
+            }
+            uint16_t color = palette.ptr[p];
+            if ((color != palette__TRANSPARENT)) {
+              (point.x = sx);
+              (point.y = sy);
+              Context_draw_pixel(this, (&point), color);
+            }
+          }
+        }
+        (px += 1);
+      }
+    }
+    (run_rem -= 1);
+    (bi += 1);
+  }
+}
+
+static void Context__render_bitmap_rle_index2(Context* this, Rect* origin, Rect* clipped, __Slice_uint8_t data, __Slice_uint16_t palette) {
+  int32_t row_bytes = ((origin->width + 3) / 4);
+  int32_t total_bytes = (row_bytes * origin->height);
+  int32_t di = 0;
+  int32_t run_rem = 0;
+  uint8_t run_val = 0;
+  int32_t bi = 0;
+  Point point = {0};
+  while ((bi < total_bytes)) {
+    if ((run_rem == 0)) {
+      (run_rem = ((int32_t)(data.ptr[di])));
+      (run_val = data.ptr[(di + 1)]);
+      (di += 2);
+    }
+    int32_t row = (bi / row_bytes);
+    int32_t col_byte = (bi % row_bytes);
+    int32_t sy = (origin->y + row);
+    if (((sy >= clipped->y) && (sy < (clipped->y + clipped->height)))) {
+      int32_t px = 0;
+      while ((px < 4)) {
+        int32_t lx = ((col_byte * 4) + px);
+        if ((lx < origin->width)) {
+          int32_t sx = (origin->x + lx);
+          if (((sx >= clipped->x) && (sx < (clipped->x + clipped->width)))) {
+            int32_t shift = ((3 - px) * 2);
+            int32_t p = ((((int32_t)(run_val)) >> shift) & 0x03);
+            uint16_t color = palette.ptr[p];
+            if ((color != palette__TRANSPARENT)) {
+              (point.x = sx);
+              (point.y = sy);
+              Context_draw_pixel(this, (&point), color);
+            }
+          }
+        }
+        (px += 1);
+      }
+    }
+    (run_rem -= 1);
+    (bi += 1);
+  }
+}
+
+static void Context__render_bitmap_rle_index4(Context* this, Rect* origin, Rect* clipped, __Slice_uint8_t data, __Slice_uint16_t palette) {
+  int32_t row_bytes = ((origin->width + 1) / 2);
+  int32_t total_bytes = (row_bytes * origin->height);
+  int32_t di = 0;
+  int32_t run_rem = 0;
+  uint8_t run_val = 0;
+  int32_t bi = 0;
+  Point point = {0};
+  while ((bi < total_bytes)) {
+    if ((run_rem == 0)) {
+      (run_rem = ((int32_t)(data.ptr[di])));
+      (run_val = data.ptr[(di + 1)]);
+      (di += 2);
+    }
+    int32_t row = (bi / row_bytes);
+    int32_t col_byte = (bi % row_bytes);
+    int32_t sy = (origin->y + row);
+    if (((sy >= clipped->y) && (sy < (clipped->y + clipped->height)))) {
+      int32_t px = 0;
+      while ((px < 2)) {
+        int32_t lx = ((col_byte * 2) + px);
+        if ((lx < origin->width)) {
+          int32_t sx = (origin->x + lx);
+          if (((sx >= clipped->x) && (sx < (clipped->x + clipped->width)))) {
+            int32_t p = (((int32_t)(run_val)) & 0x0F);
+            if ((px == 0)) {
+              (p = ((((int32_t)(run_val)) >> 4) & 0x0F));
+            }
+            uint16_t color = palette.ptr[p];
+            if ((color != palette__TRANSPARENT)) {
+              (point.x = sx);
+              (point.y = sy);
+              Context_draw_pixel(this, (&point), color);
+            }
+          }
+        }
+        (px += 1);
+      }
+    }
+    (run_rem -= 1);
+    (bi += 1);
+  }
+}
+
+static void Context__render_bitmap_rle_index8(Context* this, Rect* origin, Rect* clipped, __Slice_uint8_t data, __Slice_uint16_t palette) {
+  int32_t total_bytes = (origin->width * origin->height);
+  int32_t di = 0;
+  int32_t run_rem = 0;
+  uint8_t run_val = 0;
+  int32_t bi = 0;
+  Point point = {0};
+  while ((bi < total_bytes)) {
+    if ((run_rem == 0)) {
+      (run_rem = ((int32_t)(data.ptr[di])));
+      (run_val = data.ptr[(di + 1)]);
+      (di += 2);
+    }
+    int32_t lx = (bi % origin->width);
+    int32_t ly = (bi / origin->width);
+    int32_t sx = (origin->x + lx);
+    int32_t sy = (origin->y + ly);
+    if (((((sx >= clipped->x) && (sx < (clipped->x + clipped->width))) && (sy >= clipped->y)) && (sy < (clipped->y + clipped->height)))) {
+      uint16_t color = palette.ptr[run_val];
+      if ((color != palette__TRANSPARENT)) {
+        (point.x = sx);
+        (point.y = sy);
+        Context_draw_pixel(this, (&point), color);
+      }
+    }
+    (run_rem -= 1);
+    (bi += 1);
   }
 }
 

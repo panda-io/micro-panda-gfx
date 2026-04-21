@@ -65,6 +65,7 @@ class Canvas
         _image.height       = height
         _image.index_format = index_format
         _image.palette      = palette
+        _image.compress     = Compress.None
         var buffer_size: int = 0
         if index_format == IndexFormat.Index1
             buffer_size = ((width + 7) / 8) * height
