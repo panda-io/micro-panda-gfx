@@ -253,22 +253,39 @@ class Context
                     point.x = sx
                     draw_pixel(&point, color)
 
-    // RLE format: sequential [count: byte, value: byte] pairs; count is 1–255.
+    // RLE format: PackBits — run packet [0x80|(n-2), value] repeats value n+2 times (n in 0..127);
+    // literal packet [k-1, b0..bk-1] copies k bytes verbatim (k in 1..128).
     // Decoded byte-by-byte in row-major order; only pixels inside clipped are drawn.
 
     fun _render_bitmap_rle_index1(origin: &Rect, clipped: &Rect, data: byte[], palette: u16[])
         val row_bytes: int = (origin.width + 7) / 8
         val total_bytes: int = row_bytes * origin.height
         var di: int = 0
-        var run_rem: int = 0
+        var pkt_rem: int = 0
+        var is_run: bool = false
         var run_val: byte = 0
+        var lit_base: int = 0
+        var lit_off: int = 0
         var bi: int = 0
         val point: Point
         while bi < total_bytes
-            if run_rem == 0
-                run_rem = int(data[di])
-                run_val = data[di + 1]
-                di += 2
+            if pkt_rem == 0
+                val hdr := data[di]
+                di += 1
+                if int(hdr) >= 0x80
+                    is_run = true
+                    pkt_rem = (int(hdr) & 0x7F) + 2
+                    run_val = data[di]
+                    di += 1
+                else
+                    is_run = false
+                    pkt_rem = int(hdr) + 1
+                    lit_base = di
+                    di += pkt_rem
+                    lit_off = 0
+            var cur: byte = run_val
+            if !is_run
+                cur = data[lit_base + lit_off]
             val row: int = bi / row_bytes
             val col_byte: int = bi % row_bytes
             val sy: int = origin.y + row
@@ -280,7 +297,7 @@ class Context
                         val sx: int = origin.x + lx
                         if sx >= clipped.x && sx < clipped.x + clipped.width
                             var p: int = 0
-                            if (run_val & byte(0x80 >> px)) != 0
+                            if (cur & byte(0x80 >> px)) != 0
                                 p = 1
                             val color: u16 = palette[p]
                             if color != TRANSPARENT
@@ -288,22 +305,40 @@ class Context
                                 point.y = sy
                                 draw_pixel(&point, color)
                     px += 1
-            run_rem -= 1
+            pkt_rem -= 1
+            if !is_run
+                lit_off += 1
             bi += 1
 
     fun _render_bitmap_rle_index2(origin: &Rect, clipped: &Rect, data: byte[], palette: u16[])
         val row_bytes: int = (origin.width + 3) / 4
         val total_bytes: int = row_bytes * origin.height
         var di: int = 0
-        var run_rem: int = 0
+        var pkt_rem: int = 0
+        var is_run: bool = false
         var run_val: byte = 0
+        var lit_base: int = 0
+        var lit_off: int = 0
         var bi: int = 0
         val point: Point
         while bi < total_bytes
-            if run_rem == 0
-                run_rem = int(data[di])
-                run_val = data[di + 1]
-                di += 2
+            if pkt_rem == 0
+                val hdr := data[di]
+                di += 1
+                if int(hdr) >= 0x80
+                    is_run = true
+                    pkt_rem = (int(hdr) & 0x7F) + 2
+                    run_val = data[di]
+                    di += 1
+                else
+                    is_run = false
+                    pkt_rem = int(hdr) + 1
+                    lit_base = di
+                    di += pkt_rem
+                    lit_off = 0
+            var cur: byte = run_val
+            if !is_run
+                cur = data[lit_base + lit_off]
             val row: int = bi / row_bytes
             val col_byte: int = bi % row_bytes
             val sy: int = origin.y + row
@@ -315,29 +350,47 @@ class Context
                         val sx: int = origin.x + lx
                         if sx >= clipped.x && sx < clipped.x + clipped.width
                             val shift: int = (3 - px) * 2
-                            val p: int = (int(run_val) >> shift) & 0x03
+                            val p: int = (int(cur) >> shift) & 0x03
                             val color: u16 = palette[p]
                             if color != TRANSPARENT
                                 point.x = sx
                                 point.y = sy
                                 draw_pixel(&point, color)
                     px += 1
-            run_rem -= 1
+            pkt_rem -= 1
+            if !is_run
+                lit_off += 1
             bi += 1
 
     fun _render_bitmap_rle_index4(origin: &Rect, clipped: &Rect, data: byte[], palette: u16[])
         val row_bytes: int = (origin.width + 1) / 2
         val total_bytes: int = row_bytes * origin.height
         var di: int = 0
-        var run_rem: int = 0
+        var pkt_rem: int = 0
+        var is_run: bool = false
         var run_val: byte = 0
+        var lit_base: int = 0
+        var lit_off: int = 0
         var bi: int = 0
         val point: Point
         while bi < total_bytes
-            if run_rem == 0
-                run_rem = int(data[di])
-                run_val = data[di + 1]
-                di += 2
+            if pkt_rem == 0
+                val hdr := data[di]
+                di += 1
+                if int(hdr) >= 0x80
+                    is_run = true
+                    pkt_rem = (int(hdr) & 0x7F) + 2
+                    run_val = data[di]
+                    di += 1
+                else
+                    is_run = false
+                    pkt_rem = int(hdr) + 1
+                    lit_base = di
+                    di += pkt_rem
+                    lit_off = 0
+            var cur: byte = run_val
+            if !is_run
+                cur = data[lit_base + lit_off]
             val row: int = bi / row_bytes
             val col_byte: int = bi % row_bytes
             val sy: int = origin.y + row
@@ -348,41 +401,61 @@ class Context
                     if lx < origin.width
                         val sx: int = origin.x + lx
                         if sx >= clipped.x && sx < clipped.x + clipped.width
-                            var p: int = int(run_val) & 0x0F
+                            var p: int = int(cur) & 0x0F
                             if px == 0
-                                p = (int(run_val) >> 4) & 0x0F
+                                p = (int(cur) >> 4) & 0x0F
                             val color: u16 = palette[p]
                             if color != TRANSPARENT
                                 point.x = sx
                                 point.y = sy
                                 draw_pixel(&point, color)
                     px += 1
-            run_rem -= 1
+            pkt_rem -= 1
+            if !is_run
+                lit_off += 1
             bi += 1
 
     fun _render_bitmap_rle_index8(origin: &Rect, clipped: &Rect, data: byte[], palette: u16[])
         val total_bytes: int = origin.width * origin.height
         var di: int = 0
-        var run_rem: int = 0
+        var pkt_rem: int = 0
+        var is_run: bool = false
         var run_val: byte = 0
+        var lit_base: int = 0
+        var lit_off: int = 0
         var bi: int = 0
         val point: Point
         while bi < total_bytes
-            if run_rem == 0
-                run_rem = int(data[di])
-                run_val = data[di + 1]
-                di += 2
+            if pkt_rem == 0
+                val hdr := data[di]
+                di += 1
+                if int(hdr) >= 0x80
+                    is_run = true
+                    pkt_rem = (int(hdr) & 0x7F) + 2
+                    run_val = data[di]
+                    di += 1
+                else
+                    is_run = false
+                    pkt_rem = int(hdr) + 1
+                    lit_base = di
+                    di += pkt_rem
+                    lit_off = 0
+            var cur: byte = run_val
+            if !is_run
+                cur = data[lit_base + lit_off]
             val lx: int = bi % origin.width
             val ly: int = bi / origin.width
             val sx: int = origin.x + lx
             val sy: int = origin.y + ly
             if sx >= clipped.x && sx < clipped.x + clipped.width && sy >= clipped.y && sy < clipped.y + clipped.height
-                val color: u16 = palette[run_val]
+                val color: u16 = palette[cur]
                 if color != TRANSPARENT
                     point.x = sx
                     point.y = sy
                     draw_pixel(&point, color)
-            run_rem -= 1
+            pkt_rem -= 1
+            if !is_run
+                lit_off += 1
             bi += 1
 
     // ── private: format-specific pixel writers (strip-local coords) ───────────
