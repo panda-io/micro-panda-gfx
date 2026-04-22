@@ -18,8 +18,10 @@ enum Compress
     None = 0
     RLE  = 1
 
-// Fixed sprite dimensions — all sprites in a sheet share the same square size.
+// Fixed sprite dimensions — all sprites in a sheet share the same size.
+// Use Custom for non-square sizes (e.g. font glyphs); set w/h on the SpriteSheet.
 enum SpriteSize
     Size8x8   = 0   //  8×8  pixels
     Size16x16 = 1   // 16×16 pixels
     Size32x32 = 2   // 32×32 pixels
+    Custom    = 3   // arbitrary w×h; read from SpriteSheet.w / SpriteSheet.h
